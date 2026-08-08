@@ -1,6 +1,8 @@
 import cors from "cors";
 import express from "express";
 import { createServer } from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import {
   createRoom,
@@ -31,16 +33,33 @@ import {
 
 const PORT = Number(process.env.PORT) || 3001;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDist = path.resolve(__dirname, "../../client/dist");
+const isProd = process.env.NODE_ENV === "production";
 
 const app = express();
-app.use(cors({ origin: CLIENT_ORIGIN }));
+app.use(
+  cors({
+    origin: isProd ? true : CLIENT_ORIGIN,
+  })
+);
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+if (isProd) {
+  app.use(express.static(clientDist));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/socket.io")) return next();
+    res.sendFile(path.join(clientDist, "index.html"), (err) => {
+      if (err) next();
+    });
+  });
+}
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: CLIENT_ORIGIN },
+  cors: { origin: isProd ? true : CLIENT_ORIGIN },
   // More tolerant of mobile background / flaky networks
   pingInterval: 25_000,
   pingTimeout: 90_000,
