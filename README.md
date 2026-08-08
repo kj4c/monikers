@@ -20,6 +20,8 @@ npm run dev
 
 1. Push this repo to GitHub
 2. [Render → New → Blueprint](https://dashboard.render.com/blueprints) and select the repo (uses `render.yaml`), **or** New Web Service → this repo with:
-   - Build: `npm install && npm run build`
-   - Start: `npm start`
+   - Build: `npm install --include=dev && npm run build`
+   - Start: `NODE_ENV=production npm start`
+   - Node: `22`
+   - Do **not** set `NODE_ENV=production` as a service env var (it skips vite/typescript during install)
 3. Open the Render URL on phones — same origin, sockets work
