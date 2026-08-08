@@ -1,8 +1,8 @@
 import type { Card, RoomState, Team } from "@monikers/shared";
 import {
+  DEFAULT_CARDS_PER_PLAYER,
   MAX_SKIPS,
   TURN_MS,
-  cardsPerPlayerForCount,
 } from "@monikers/shared";
 
 export function shuffle<T>(arr: T[]): T[] {
@@ -24,7 +24,7 @@ export function createEmptyRoom(code: string, hostId: string): RoomState {
     hostId,
     phase: "lobby",
     players: [],
-    cardsPerPlayer: 5,
+    cardsPerPlayer: DEFAULT_CARDS_PER_PLAYER,
     submissions: {},
     deck: [],
     skipPile: [],
@@ -36,10 +36,6 @@ export function createEmptyRoom(code: string, hostId: string): RoomState {
     scores: emptyScores(),
     roundScores: emptyScores(),
   };
-}
-
-export function recomputeCardsPerPlayer(room: RoomState) {
-  room.cardsPerPlayer = cardsPerPlayerForCount(room.players.length);
 }
 
 export function shuffleTeams(room: RoomState) {
@@ -176,7 +172,6 @@ export function resetToLobby(room: RoomState): { ok: boolean; error?: string } {
   room.turn = null;
   room.lastPlayerId = null;
   room.submissions = {};
-  recomputeCardsPerPlayer(room);
   room.players.forEach((p) => {
     p.ready = false;
     p.cardsSubmitted = false;

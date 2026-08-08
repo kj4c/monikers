@@ -25,6 +25,7 @@ import {
   handleShuffleTeams,
   handleSkip,
   handleStartCardSelect,
+  handleSetCardsPerPlayer,
   handleSwapTeam,
   handleUnskip,
   joinRoom,
@@ -180,6 +181,10 @@ io.on("connection", (socket) => {
 
   socket.on("lobby:shuffleTeams", () => {
     withRoom((room, playerId) => handleShuffleTeams(room, playerId));
+  });
+
+  socket.on("lobby:setCardsPerPlayer", ({ count }: { count: number }) => {
+    withRoom((room, playerId) => handleSetCardsPerPlayer(room, playerId, count));
   });
 
   socket.on("lobby:swapTeam", ({ playerId }: { playerId: string }) => {

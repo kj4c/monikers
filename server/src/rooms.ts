@@ -4,6 +4,7 @@ import {
   POINTS_MAX,
   POINTS_MIN,
   ROOM_CODE_LENGTH,
+  clampCardsPerPlayer,
 } from "@monikers/shared";
 import { v4 as uuid } from "uuid";
 import {
@@ -14,7 +15,6 @@ import {
   endTurn,
   gotIt,
   nextRound,
-  recomputeCardsPerPlayer,
   replayGame,
   resetToLobby,
   sanitizeStateForPlayer,
@@ -120,7 +120,6 @@ export function createRoom(
   };
   room.players.push(player);
   room.submissions[playerId] = [];
-  recomputeCardsPerPlayer(room);
   rooms.set(code, room);
   bindSocket(socketId, code, playerId);
   return { room, playerId };
@@ -186,9 +185,6 @@ export function joinRoom(
   };
   room.players.push(player);
   room.submissions[playerId] = [];
-  if (room.phase === "lobby") {
-    recomputeCardsPerPlayer(room);
-  }
   bindSocket(socketId, room.code, playerId);
   return { room, playerId };
 }
@@ -285,6 +281,20 @@ export function handleSwapTeam(
   return {};
 }
 
+export function handleSetCardsPerPlayer(
+  room: RoomState,
+  playerId: string,
+  count: number
+) {
+  const err = requireHost(room, playerId);
+  if (err) return { error: err };
+  if (room.phase !== "lobby") {
+    return { error: "Can only change card count in the lobby" };
+  }
+  room.cardsPerPlayer = clampCardsPerPlayer(count);
+  return {};
+}
+
 export function handleStartCardSelect(room: RoomState, playerId: string) {
   const err = requireHost(room, playerId);
   if (err) return { error: err };
@@ -292,7 +302,6 @@ export function handleStartCardSelect(room: RoomState, playerId: string) {
   if (!canStartCardSelect(room)) {
     return { error: "Need at least 2 players, one on each team" };
   }
-  recomputeCardsPerPlayer(room);
   room.phase = "cardSelect";
   room.players.forEach((p) => {
     p.ready = false;

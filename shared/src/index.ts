@@ -2,7 +2,9 @@ export const TURN_MS = 60_000;
 export const MAX_SKIPS = 3;
 export const POINTS_MIN = 1;
 export const POINTS_MAX = 4;
-export const TARGET_DECK_SIZE = 40;
+export const DEFAULT_CARDS_PER_PLAYER = 8;
+export const MIN_CARDS_PER_PLAYER = 1;
+export const MAX_CARDS_PER_PLAYER = 20;
 export const ROOM_CODE_LENGTH = 5;
 
 export type Phase =
@@ -72,10 +74,12 @@ export interface RoomState {
   roundScores: Scores;
 }
 
-export function cardsPerPlayerForCount(playerCount: number): number {
-  if (playerCount <= 0) return 5;
-  const n = Math.round(TARGET_DECK_SIZE / playerCount);
-  return Math.min(8, Math.max(3, n));
+export function clampCardsPerPlayer(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_CARDS_PER_PLAYER;
+  return Math.min(
+    MAX_CARDS_PER_PLAYER,
+    Math.max(MIN_CARDS_PER_PLAYER, Math.round(n))
+  );
 }
 
 export function roundRule(round: 1 | 2 | 3): string {
