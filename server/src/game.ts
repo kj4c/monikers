@@ -86,6 +86,10 @@ export function startTurn(room: RoomState, playerId: string) {
   const player = room.players.find((p) => p.id === playerId);
   if (!player) return;
 
+  // Fresh shuffle of remaining cards at the start of every turn
+  room.deck = shuffle([...room.deck, ...room.skipPile]);
+  room.skipPile = [];
+
   const currentCard = room.deck.length > 0 ? room.deck[0] : null;
   room.turn = {
     playerId,
@@ -259,9 +263,9 @@ export function endTurn(room: RoomState): { ok: boolean; error?: string } {
   const currentId = room.turn.playerId;
   room.lastPlayerId = currentId;
 
-  // Put skip pile back into deck and shuffle
+  // Return skips to the deck; startTurn will reshuffle for the next player
   if (room.skipPile.length > 0) {
-    room.deck = shuffle([...room.deck, ...room.skipPile]);
+    room.deck = [...room.deck, ...room.skipPile];
     room.skipPile = [];
   }
 
