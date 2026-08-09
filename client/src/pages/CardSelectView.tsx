@@ -123,7 +123,7 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
         </div>
       )}
 
-      {me?.cardsSubmitted && allSubmitted && (
+      {me?.cardsSubmitted && (
         <button
           type="button"
           className={me.ready ? "btn-secondary" : "btn-primary"}
@@ -143,57 +143,69 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
         </button>
       )}
 
-      {!allSubmitted && me?.cardsSubmitted && (
-        <p className="hint">Waiting for others to finish their cards…</p>
+      {me?.cardsSubmitted && !allSubmitted && (
+        <p className="hint">
+          You&apos;re set{me.ready ? " and ready" : ""} — waiting for others to
+          finish their cards…
+        </p>
+      )}
+
+      {allSubmitted && me?.ready && !room.players.every((p) => p.ready) && (
+        <p className="hint">Waiting for everyone to ready up…</p>
       )}
 
       {composerOpen && (
         <div className="modal-backdrop" onClick={() => setComposerOpen(false)}>
-          <div className="sheet stack" onClick={(e) => e.stopPropagation()}>
-            <h3>Add your card</h3>
-            <input
-              placeholder="Title (what to guess)"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              maxLength={80}
-              autoFocus
-            />
-            <textarea
-              placeholder="Optional description / hint for you"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={280}
-              rows={3}
-            />
-            <p className="hint">Points</p>
-            <div className="points-picker">
-              {([1, 2, 3, 4] as Points[]).map((p) => (
-                <button
-                  type="button"
-                  key={p}
-                  className={points === p ? "selected" : ""}
-                  style={{ background: pointColor(p) }}
-                  onClick={() => setPoints(p)}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            {text.trim() && (
-              <MonikerCard
-                card={{ text, description, points }}
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-body">
+              <h3>Add your card</h3>
+              <input
+                placeholder="Title (what to guess)"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                maxLength={80}
+                autoFocus
               />
-            )}
-            <button type="button" className="btn-primary" onClick={addCard}>
-              Add card
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => setComposerOpen(false)}
-            >
-              Cancel
-            </button>
+              <textarea
+                placeholder="Optional description / hint for you"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={280}
+                rows={3}
+              />
+              <p className="hint">Points</p>
+              <div className="points-picker">
+                {([1, 2, 3, 4] as Points[]).map((p) => (
+                  <button
+                    type="button"
+                    key={p}
+                    className={points === p ? "selected" : ""}
+                    style={{ background: pointColor(p) }}
+                    onClick={() => setPoints(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              {text.trim() && (
+                <MonikerCard
+                  className="preview"
+                  card={{ text, description, points }}
+                />
+              )}
+            </div>
+            <div className="sheet-footer">
+              <button type="button" className="btn-primary" onClick={addCard}>
+                Add card
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setComposerOpen(false)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

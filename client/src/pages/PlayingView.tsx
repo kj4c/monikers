@@ -140,7 +140,7 @@ export function PlayingView({ room, meId, isHost, socket }: Props) {
                   borderRadius: 18,
                 }}
               >
-                <MonikerCard card={current} />
+                <MonikerCard className="swipeable" card={current} />
               </div>
             ) : (
               <div className="waiting-turn">

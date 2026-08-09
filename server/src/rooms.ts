@@ -392,9 +392,6 @@ export function handleReady(room: RoomState, playerId: string) {
   if (!player.cardsSubmitted) {
     return { error: "Finish your cards first" };
   }
-  if (!allCardsSubmitted(room)) {
-    return { error: "Waiting for everyone to finish cards" };
-  }
   player.ready = !player.ready;
   return {};
 }
