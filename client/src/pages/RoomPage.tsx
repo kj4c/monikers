@@ -13,10 +13,18 @@ import {
 export function RoomPage() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const { socket, playerId, room, error, clearError, joinRoom } = useSocket();
+  const { socket, playerId, room, error, clearError, clearRoom, joinRoom } =
+    useSocket();
   const name = getStoredName();
   const roomCode = (code ?? "").toUpperCase();
   const joining = useRef(false);
+
+  const goHome = () => {
+    joining.current = true; // block auto-rejoin while navigating away
+    socket.emit("room:leave");
+    clearRoom();
+    navigate("/", { replace: true });
+  };
 
   useEffect(() => {
     const onEnded = () => {
@@ -77,6 +85,14 @@ export function RoomPage() {
   if (!room || !playerId || room.code !== roomCode) {
     return (
       <div className="app-shell">
+        <header className="room-header">
+          <div className="room-header-left">
+            <button type="button" className="btn-back" onClick={goHome}>
+              ← Back
+            </button>
+            <div className="room-code">{roomCode}</div>
+          </div>
+        </header>
         <div className="room-body stack">
           <p className="hint">Connecting to room {roomCode}…</p>
         </div>
@@ -99,7 +115,10 @@ export function RoomPage() {
   return (
     <div className="app-shell">
       <header className="room-header">
-        <div>
+        <div className="room-header-left">
+          <button type="button" className="btn-back" onClick={goHome}>
+            ← Back
+          </button>
           <div className="room-code">{room.code}</div>
         </div>
         <div className="room-meta">

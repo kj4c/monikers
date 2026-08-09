@@ -250,6 +250,11 @@ io.on("connection", (socket) => {
     withRoom((room, playerId) => handleGoHome(room, playerId));
   });
 
+  socket.on("room:leave", () => {
+    const room = handleDisconnect(socket.id);
+    if (room) broadcast(room.code);
+  });
+
   socket.on("disconnect", () => {
     const room = handleDisconnect(socket.id);
     if (room) broadcast(room.code);

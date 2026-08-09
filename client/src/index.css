@@ -193,6 +193,25 @@ textarea:focus {
   overflow: hidden;
 }
 
+.room-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.btn-back {
+  flex-shrink: 0;
+  width: auto;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--white);
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
 .room-header::before {
   content: "";
   position: absolute;
