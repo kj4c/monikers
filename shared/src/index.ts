@@ -70,6 +70,8 @@ export interface RoomState {
   turn: Turn | null;
   /** Last clue-giver, used to continue turn order across rounds */
   lastPlayerId: string | null;
+  /** Global turn counter for strict T1/T2 alternating when team sizes differ */
+  turnIndex: number;
   scores: Scores;
   roundScores: Scores;
 }

@@ -33,6 +33,7 @@ export function createEmptyRoom(code: string, hostId: string): RoomState {
     round: 1,
     turn: null,
     lastPlayerId: null,
+    turnIndex: 0,
     scores: emptyScores(),
     roundScores: emptyScores(),
   };
@@ -57,29 +58,33 @@ function teamPlayers(room: RoomState, team: Team) {
   return room.players.filter((p) => p.team === team);
 }
 
-/** Build alternating turn order starting from a given team index offset. */
-export function getTurnOrder(room: RoomState): string[] {
+/**
+ * Strict team alternating: T1, T2, T1, T2, …
+ * Each team cycles its own roster independently, so 2 vs 3 becomes
+ * A C B D A E B C … instead of dumping leftover teammates in a row.
+ */
+function playerAtTurnIndex(room: RoomState, index: number): string | null {
   const t1 = teamPlayers(room, 1);
   const t2 = teamPlayers(room, 2);
-  const order: string[] = [];
-  const max = Math.max(t1.length, t2.length);
-  for (let i = 0; i < max; i++) {
-    if (i < t1.length) order.push(t1[i].id);
-    if (i < t2.length) order.push(t2[i].id);
-  }
-  return order;
+  if (t1.length === 0 && t2.length === 0) return null;
+  if (t1.length === 0) return t2[index % t2.length]!.id;
+  if (t2.length === 0) return t1[index % t1.length]!.id;
+
+  const pair = Math.floor(index / 2);
+  if (index % 2 === 0) return t1[pair % t1.length]!.id;
+  return t2[pair % t2.length]!.id;
 }
 
 export function nextPlayerId(
   room: RoomState,
   currentPlayerId: string | null
 ): string | null {
-  const order = getTurnOrder(room);
-  if (order.length === 0) return null;
-  if (!currentPlayerId) return order[0];
-  const idx = order.indexOf(currentPlayerId);
-  if (idx === -1) return order[0];
-  return order[(idx + 1) % order.length];
+  if (currentPlayerId == null) {
+    room.turnIndex = 0;
+    return playerAtTurnIndex(room, 0);
+  }
+  room.turnIndex += 1;
+  return playerAtTurnIndex(room, room.turnIndex);
 }
 
 export function startTurn(room: RoomState, playerId: string) {
@@ -124,6 +129,7 @@ export function startGame(room: RoomState) {
   room.roundScores = emptyScores();
   room.phase = "playing";
   room.lastPlayerId = null;
+  room.turnIndex = 0;
   room.players.forEach((p) => {
     p.ready = false;
   });
@@ -150,6 +156,7 @@ export function replayGame(room: RoomState): { ok: boolean; error?: string } {
   room.phase = "playing";
   room.turn = null;
   room.lastPlayerId = null;
+  room.turnIndex = 0;
   room.players.forEach((p) => {
     p.ready = false;
   });
@@ -175,6 +182,7 @@ export function resetToLobby(room: RoomState): { ok: boolean; error?: string } {
   room.roundScores = emptyScores();
   room.turn = null;
   room.lastPlayerId = null;
+  room.turnIndex = 0;
   room.submissions = {};
   room.players.forEach((p) => {
     p.ready = false;
