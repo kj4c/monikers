@@ -94,13 +94,31 @@ function bindSocket(
   roomCode: string,
   playerId: string
 ) {
-  // Drop any previous binding for this socket
+  // Drop stale bindings for this socket OR this player (refresh gets a new socket)
+  for (const [sid, b] of sockets) {
+    if (sid === socketId || b.playerId === playerId) {
+      sockets.delete(sid);
+    }
+  }
   sockets.set(socketId, { roomCode, playerId });
   clearRoomCleanup(roomCode);
 }
 
 function unbindSocketOnly(socketId: string) {
   sockets.delete(socketId);
+}
+
+function normalizeName(name: string) {
+  return name.trim().slice(0, 24) || "Player";
+}
+
+function findPlayerByName(room: RoomState, name: string) {
+  const n = normalizeName(name).toLowerCase();
+  const matches = room.players.filter(
+    (p) => p.name.trim().toLowerCase() === n
+  );
+  // Prefer an away seat; otherwise reuse the existing same-name seat (refresh race)
+  return matches.find((p) => !p.connected) ?? matches[0];
 }
 
 export function createRoom(
@@ -112,7 +130,7 @@ export function createRoom(
   const room = createEmptyRoom(code, playerId);
   const player = {
     id: playerId,
-    name: name.trim().slice(0, 24) || "Player",
+    name: normalizeName(name),
     team: 1 as Team,
     ready: false,
     cardsSubmitted: false,
@@ -125,23 +143,16 @@ export function createRoom(
   return { room, playerId };
 }
 
-function reclaimByName(room: RoomState, name: string) {
-  const n = name.trim().toLowerCase();
-  if (!n) return undefined;
-  return room.players.find(
-    (p) => !p.connected && p.name.trim().toLowerCase() === n
-  );
-}
-
 export function joinRoom(
   socketId: string,
   code: string,
-  name: string
+  name: string,
+  preferPlayerId?: string
 ): { room?: RoomState; playerId?: string; error?: string } {
   const room = rooms.get(code.toUpperCase());
   if (!room) return { error: "Room not found" };
 
-  const displayName = name.trim().slice(0, 24) || "Player";
+  const displayName = normalizeName(name);
 
   // Already bound as this socket
   const existingBind = sockets.get(socketId);
@@ -153,21 +164,41 @@ export function joinRoom(
     }
   }
 
-  // Reclaim seat after phone sleep / tab restore (same name, was away)
-  const reclaim = reclaimByName(room, displayName);
-  if (reclaim) {
-    reclaim.connected = true;
-    reclaim.name = displayName;
-    bindSocket(socketId, room.code, reclaim.id);
-    return { room, playerId: reclaim.id };
+  // Prefer stable session player id (refresh / reopen)
+  if (preferPlayerId) {
+    const byId = room.players.find((p) => p.id === preferPlayerId);
+    if (byId) {
+      byId.connected = true;
+      byId.name = displayName;
+      bindSocket(socketId, room.code, byId.id);
+      return { room, playerId: byId.id };
+    }
+  }
+
+  // Reclaim existing seat with this name (avoids duplicate active+inactive clones)
+  const existing = findPlayerByName(room, displayName);
+  if (existing) {
+    existing.connected = true;
+    existing.name = displayName;
+    // Clean up legacy duplicate seats with the same name
+    const n = displayName.toLowerCase();
+    const removed = room.players.filter(
+      (p) => p.id !== existing.id && p.name.trim().toLowerCase() === n
+    );
+    if (removed.length > 0) {
+      room.players = room.players.filter(
+        (p) => p.id === existing.id || p.name.trim().toLowerCase() !== n
+      );
+      for (const p of removed) {
+        delete room.submissions[p.id];
+      }
+    }
+    bindSocket(socketId, room.code, existing.id);
+    return { room, playerId: existing.id };
   }
 
   if (room.phase !== "lobby" && room.phase !== "cardSelect") {
     return { error: "Game already started — use the same name to rejoin" };
-  }
-
-  if (room.players.some((p) => p.id === socketId)) {
-    return { room, playerId: socketId };
   }
 
   const t1 = room.players.filter((p) => p.team === 1).length;
@@ -196,20 +227,7 @@ export function rejoinRoom(
   playerId: string,
   name: string
 ): { room?: RoomState; playerId?: string; error?: string } {
-  const room = rooms.get(code.toUpperCase());
-  if (!room) return { error: "Room not found" };
-
-  const player = room.players.find((p) => p.id === playerId);
-  if (!player) {
-    // Fall back to name reclaim / fresh join
-    return joinRoom(socketId, code, name);
-  }
-
-  const displayName = name.trim().slice(0, 24);
-  if (displayName) player.name = displayName;
-  player.connected = true;
-  bindSocket(socketId, room.code, player.id);
-  return { room, playerId: player.id };
+  return joinRoom(socketId, code, name, playerId);
 }
 
 export function getSocketBinding(socketId: string) {

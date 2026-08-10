@@ -13,14 +13,24 @@ import {
 export function RoomPage() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const { socket, playerId, room, error, clearError, clearRoom, joinRoom } =
-    useSocket();
+  const {
+    socket,
+    playerId,
+    room,
+    error,
+    clearError,
+    clearRoom,
+    joinRoom,
+    rejoinSession,
+  } = useSocket();
   const name = getStoredName();
   const roomCode = (code ?? "").toUpperCase();
   const joining = useRef(false);
+  const left = useRef(false);
 
   const goHome = () => {
-    joining.current = true; // block auto-rejoin while navigating away
+    left.current = true;
+    joining.current = true;
     socket.emit("room:leave");
     clearRoom();
     navigate("/", { replace: true });
@@ -35,32 +45,34 @@ export function RoomPage() {
   }, [navigate]);
 
   useEffect(() => {
+    if (left.current) return;
     if (!name || !roomCode) return;
-    if (room?.code === roomCode) return;
+    if (room?.code === roomCode && playerId) return;
     if (joining.current) return;
 
-    // Prefer session rejoin (handled on connect); if no session for this room, join by name
     const session = getSession();
-    if (session?.roomCode === roomCode && session.playerId) {
-      // connect handler will rejoin; if already connected without room, join by name reclaim
-      if (!room) {
-        joining.current = true;
-        void joinRoom(roomCode, name)
-          .catch(() => {})
-          .finally(() => {
-            joining.current = false;
-          });
-      }
-      return;
-    }
-
     joining.current = true;
-    void joinRoom(roomCode, name)
-      .catch(() => {})
-      .finally(() => {
+
+    const enter = async () => {
+      try {
+        if (session?.roomCode === roomCode && session.playerId) {
+          const ok = await rejoinSession();
+          if (!ok && !left.current) {
+            // Session stale — fall back to name join (server reclaims same-name seat)
+            await joinRoom(roomCode, name);
+          }
+        } else {
+          await joinRoom(roomCode, name);
+        }
+      } catch {
+        /* room:error shown via socket */
+      } finally {
         joining.current = false;
-      });
-  }, [room, roomCode, name, joinRoom]);
+      }
+    };
+
+    void enter();
+  }, [room, roomCode, name, playerId, joinRoom, rejoinSession]);
 
   useEffect(() => {
     if (!error) return;
@@ -82,7 +94,10 @@ export function RoomPage() {
     );
   }
 
-  if (!room || !playerId || room.code !== roomCode) {
+  // Already in this room — keep UI mounted (avoid flash of "Connecting…")
+  const inRoom = room?.code === roomCode && !!playerId;
+
+  if (!inRoom) {
     return (
       <div className="app-shell">
         <header className="room-header">

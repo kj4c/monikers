@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -34,6 +35,7 @@ type SocketContextValue = {
   clearRoom: () => void;
   createRoom: (name: string) => Promise<string>;
   joinRoom: (code: string, name: string) => Promise<string>;
+  rejoinSession: () => Promise<boolean>;
 };
 
 const SocketContext = createContext<SocketContextValue | null>(null);
@@ -41,7 +43,6 @@ const SocketContext = createContext<SocketContextValue | null>(null);
 const URL =
   import.meta.env.VITE_SERVER_URL ??
   (import.meta.env.PROD ? window.location.origin : "http://localhost:3001");
-
 
 export function SocketProvider({ children }: { children: ReactNode }) {
   const [socket] = useState(() =>
@@ -60,39 +61,63 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   );
   const [room, setRoom] = useState<RoomState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const roomRef = useRef<RoomState | null>(null);
+  const rejoining = useRef(false);
 
-  const tryRejoin = useCallback(() => {
-    const session = getSession();
-    if (!session) return;
-    socket.emit(
-      "room:rejoin",
-      {
-        code: session.roomCode,
-        playerId: session.playerId,
-        name: session.name,
-      },
-      (res: Ack) => {
-        if (res?.ok && res.playerId) {
-          setPlayerId(res.playerId);
-          saveSession({
-            playerId: res.playerId,
-            roomCode: res.code ?? session.roomCode,
-            name: session.name,
-          });
-        } else {
-          // Room gone — clear stale session
-          clearSession();
-          setPlayerId(null);
-          setRoom(null);
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
+
+  const rejoinSession = useCallback(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const session = getSession();
+        if (!session) {
+          resolve(false);
+          return;
         }
-      }
-    );
-  }, [socket]);
+        if (rejoining.current) {
+          resolve(true);
+          return;
+        }
+        rejoining.current = true;
+        socket.emit(
+          "room:rejoin",
+          {
+            code: session.roomCode,
+            playerId: session.playerId,
+            name: session.name,
+          },
+          (res: Ack) => {
+            rejoining.current = false;
+            if (res?.ok && res.playerId && res.code) {
+              setPlayerId(res.playerId);
+              saveSession({
+                playerId: res.playerId,
+                roomCode: res.code,
+                name: session.name,
+              });
+              resolve(true);
+            } else {
+              // Only clear if we aren't already showing this room live
+              const live = roomRef.current;
+              if (!live || live.code !== session.roomCode) {
+                clearSession();
+                setPlayerId(null);
+                setRoom(null);
+              }
+              resolve(false);
+            }
+          }
+        );
+      }),
+    [socket]
+  );
 
   useEffect(() => {
     const onConnect = () => {
       setSocketId(socket.id ?? null);
-      tryRejoin();
+      void rejoinSession();
     };
     const onState = (state: RoomState) => setRoom(state);
     const onError = (msg: string) => setError(msg);
@@ -115,7 +140,30 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       socket.off("room:error", onError);
       socket.off("room:ended", onEnded);
     };
-  }, [socket, tryRejoin]);
+  }, [socket, rejoinSession]);
+
+  const waitForRoom = useCallback(
+    (code: string, timeoutMs = 4000) =>
+      new Promise<void>((resolve, reject) => {
+        if (roomRef.current?.code === code) {
+          resolve();
+          return;
+        }
+        const timer = window.setTimeout(() => {
+          socket.off("room:state", onState);
+          reject(new Error("Timed out waiting for room"));
+        }, timeoutMs);
+        const onState = (state: RoomState) => {
+          if (state.code === code) {
+            window.clearTimeout(timer);
+            socket.off("room:state", onState);
+            resolve();
+          }
+        };
+        socket.on("room:state", onState);
+      }),
+    [socket]
+  );
 
   const createRoom = useCallback(
     (name: string) =>
@@ -129,20 +177,29 @@ export function SocketProvider({ children }: { children: ReactNode }) {
               name: name.trim(),
             });
             setPlayerId(res.playerId);
-            resolve(res.code);
+            void waitForRoom(res.code)
+              .catch(() => {})
+              .finally(() => resolve(res.code!));
           } else reject(new Error(res?.error ?? "Failed to create room"));
         });
       }),
-    [socket]
+    [socket, waitForRoom]
   );
 
   const joinRoom = useCallback(
     (code: string, name: string) =>
       new Promise<string>((resolve, reject) => {
         setStoredName(name);
+        const normalized = code.trim().toUpperCase();
+        const session = getSession();
         socket.emit(
           "room:join",
-          { code, name },
+          {
+            code: normalized,
+            name,
+            playerId:
+              session?.roomCode === normalized ? session.playerId : undefined,
+          },
           (res: Ack) => {
             if (res?.ok && res.code && res.playerId) {
               saveSession({
@@ -151,12 +208,14 @@ export function SocketProvider({ children }: { children: ReactNode }) {
                 name: name.trim(),
               });
               setPlayerId(res.playerId);
-              resolve(res.code);
+              void waitForRoom(res.code)
+                .catch(() => {})
+                .finally(() => resolve(res.code!));
             } else reject(new Error(res?.error ?? "Failed to join room"));
           }
         );
       }),
-    [socket]
+    [socket, waitForRoom]
   );
 
   const value = useMemo(
@@ -174,8 +233,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       },
       createRoom,
       joinRoom,
+      rejoinSession,
     }),
-    [socket, socketId, playerId, room, error, createRoom, joinRoom]
+    [socket, socketId, playerId, room, error, createRoom, joinRoom, rejoinSession]
   );
 
   return (

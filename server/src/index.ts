@@ -100,10 +100,14 @@ io.on("connection", (socket) => {
   socket.on(
     "room:join",
     (
-      { code, name }: { code: string; name: string },
+      {
+        code,
+        name,
+        playerId,
+      }: { code: string; name: string; playerId?: string },
       ack?: (r: unknown) => void
     ) => {
-      const result = joinRoom(socket.id, code ?? "", name ?? "");
+      const result = joinRoom(socket.id, code ?? "", name ?? "", playerId);
       if (result.error || !result.room || !result.playerId) {
         ack?.({ ok: false, error: result.error ?? "Failed" });
         socket.emit("room:error", result.error ?? "Failed");
