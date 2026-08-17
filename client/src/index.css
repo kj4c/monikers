@@ -956,6 +956,7 @@ textarea:focus {
   border-radius: 18px;
   padding: 1.25rem 1rem;
   animation: timesUpIn 0.28s ease-out;
+  z-index: 3;
 }
 
 .times-up-flash .hint {

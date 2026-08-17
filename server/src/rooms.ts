@@ -637,7 +637,9 @@ export function handleEndTurn(room: RoomState, playerId: string) {
 }
 
 export function handleTimeout(room: RoomState) {
-  return expireTurn(room);
+  const result = expireTurn(room);
+  if (result.error === "Time remaining") return {};
+  return result;
 }
 
 export function handleStartTurn(room: RoomState, playerId: string) {

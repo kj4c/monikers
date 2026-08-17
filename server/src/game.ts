@@ -340,7 +340,7 @@ export function expireTurn(room: RoomState): { ok: boolean; error?: string } {
   if (room.phase !== "playing" || !room.turn) {
     return { ok: false, error: "Not playing" };
   }
-  if (Date.now() + 500 < room.turn.endsAt) {
+  if (Date.now() + 2000 < room.turn.endsAt) {
     return { ok: false, error: "Time remaining" };
   }
   room.turn.timedOut = true;

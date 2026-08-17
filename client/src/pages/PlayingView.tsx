@@ -56,7 +56,6 @@ export function PlayingView({ room, meId, socket }: Props) {
   const locked = timedOut || !!turn?.timedOut || room.timesUp || !turn;
   const [skipOpen, setSkipOpen] = useState(false);
   const [skipAlert, setSkipAlert] = useState(false);
-  const timeoutSent = useRef(false);
   const burstSeq = useRef(0);
   const seenScored = useRef(room.scoredThisRound.length);
   const seenSkips = useRef(room.skipPile.length);
@@ -76,20 +75,20 @@ export function PlayingView({ room, meId, socket }: Props) {
   const waitingToStart = !turn && !!room.pendingPlayerId;
   const isNextUp = room.pendingPlayerId === meId;
   const isRoundKickoff = waitingToStart && !room.timesUp && room.firstTurnPending;
-  const showPlayFace = (isClueGiver && !room.timesUp) || isRoundKickoff;
+  const showTimesUp = room.timesUp || (!!turn && timedOut && !isRoundKickoff);
+  const showPlayFace =
+    (isClueGiver && !showTimesUp) || isRoundKickoff;
   const faceCard = isRoundKickoff ? KICKOFF_CARD : current;
   const clock = isRoundKickoff ? room.turnSeconds : seconds;
   const mult = teamMultipliers(room.players, room.pointMultiplier);
 
   useEffect(() => {
-    timeoutSent.current = false;
-  }, [turn?.playerId, turn?.endsAt]);
-
-  useEffect(() => {
     if (!turn || Date.now() < turn.endsAt) return;
-    if (timeoutSent.current) return;
-    timeoutSent.current = true;
     socket.emit("turn:timeout");
+    const id = window.setInterval(() => {
+      socket.emit("turn:timeout");
+    }, 400);
+    return () => window.clearInterval(id);
   }, [timedOut, turn, socket]);
 
   const warnSkipsUsed = () => {
@@ -243,19 +242,21 @@ export function PlayingView({ room, meId, socket }: Props) {
         </div>
       </div>
 
-      {(turn || isRoundKickoff) && (
+      {(turn || isRoundKickoff) && !showTimesUp && (
         <div className={`timer ${!isRoundKickoff && seconds <= 10 ? "urgent" : ""}`}>
           {Math.floor(clock / 60)}:{String(clock % 60).padStart(2, "0")}
         </div>
       )}
 
-      {room.timesUp && (
+      {showTimesUp && (
         <div className="times-up-flash" aria-live="assertive">
           <div className="times-up-text">TIMES UP!</div>
           <p className="hint">
             {isNextUp
               ? "Your turn — tap start when you're ready."
-              : `Waiting for ${pending?.name ?? "the next player"} to start.`}
+              : pending
+                ? `Waiting for ${pending.name} to start.`
+                : "Pass the phone to the next player."}
           </p>
           {isNextUp && (
             <button
@@ -269,7 +270,7 @@ export function PlayingView({ room, meId, socket }: Props) {
         </div>
       )}
 
-      {waitingToStart && !room.timesUp && !isRoundKickoff && (
+      {waitingToStart && !showTimesUp && !isRoundKickoff && (
         <div className="waiting-turn compact-wait">
           <p className="hint">Up next</p>
           <h2>{pending?.name ?? "Player"}</h2>
@@ -287,7 +288,7 @@ export function PlayingView({ room, meId, socket }: Props) {
         </div>
       )}
 
-      {turn && !isClueGiver && !room.timesUp && (
+      {turn && !isClueGiver && !showTimesUp && (
         <div className="waiting-turn compact-wait">
           <p className="hint">Now describing</p>
           <h2>{clueGiver?.name ?? "Player"}&apos;s turn</h2>
