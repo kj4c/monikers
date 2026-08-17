@@ -79,7 +79,7 @@ export function PlayingView({ room, meId, socket }: Props) {
   const showPlayFace = (isClueGiver && !room.timesUp) || isRoundKickoff;
   const faceCard = isRoundKickoff ? KICKOFF_CARD : current;
   const clock = isRoundKickoff ? room.turnSeconds : seconds;
-  const mult = teamMultipliers(room.players);
+  const mult = teamMultipliers(room.players, room.pointMultiplier);
 
   useEffect(() => {
     timeoutSent.current = false;
@@ -479,7 +479,7 @@ export function RoundEndView({
       };
     })
     .sort((a, b) => b.cards - a.cards || a.player.team - b.player.team);
-  const mult = teamMultipliers(room.players);
+  const mult = teamMultipliers(room.players, room.pointMultiplier);
 
   return (
     <div className="tally stack">

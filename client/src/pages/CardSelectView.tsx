@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import type { Card, Points, RoomState } from "@monikers/shared";
-import { PHRASE_BANK, pointColor } from "@monikers/shared";
+import { PHRASE_BANK, cardsForPlayer, pointColor } from "@monikers/shared";
 import type { Socket } from "socket.io-client";
 import { MonikerCard } from "../components/MonikerCard";
 
@@ -14,6 +14,9 @@ type Props = {
 export function CardSelectView({ room, meId, isHost, socket }: Props) {
   const mine = room.submissions[meId] ?? [];
   const me = room.players.find((p) => p.id === meId);
+  const myQuota = me
+    ? cardsForPlayer(room.players, room.cardsPerPlayer, me)
+    : room.cardsPerPlayer;
   const allSubmitted = room.players.every((p) => p.cardsSubmitted);
   const [editing, setEditing] = useState<Card | null | "new">(null);
   const [text, setText] = useState("");
@@ -37,11 +40,11 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
   });
 
   const slots = Array.from(
-    { length: room.cardsPerPlayer },
+    { length: myQuota },
     (_, i) => mine[i] ?? null
   );
   const slotCols =
-    room.cardsPerPlayer <= 1 ? 1 : room.cardsPerPlayer === 2 ? 2 : room.cardsPerPlayer <= 6 ? 3 : 4;
+    myQuota <= 1 ? 1 : myQuota === 2 ? 2 : myQuota <= 6 ? 3 : 4;
 
   const openNew = () => {
     setConfirmDelete(false);
@@ -89,7 +92,7 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
     <div className="stack fit-screen">
       <div className="fit-screen-scroll">
       <p className="hint">
-        Add <strong>{room.cardsPerPlayer}</strong> cards. Tap a card to edit,
+        Add <strong>{myQuota}</strong> cards. Tap a card to edit,
         or pick from the phrase bank.
       </p>
 
@@ -122,7 +125,7 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
               key={`empty-${i}`}
               className="card-slot empty"
               onClick={openNew}
-              disabled={mine.length >= room.cardsPerPlayer}
+              disabled={mine.length >= myQuota}
             >
               + Add
             </button>
@@ -130,7 +133,7 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
         )}
       </div>
 
-      {mine.length < room.cardsPerPlayer && (
+      {mine.length < myQuota && (
         <button
           type="button"
           className="btn-secondary"
@@ -143,6 +146,7 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
       <div className="player-status-row">
         {room.players.map((p) => {
           const count = (room.submissions[p.id] ?? []).length;
+          const q = cardsForPlayer(room.players, room.cardsPerPlayer, p);
           return (
             <div
               key={p.id}
@@ -153,7 +157,7 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
                 {p.id === meId ? " (you)" : ""}
               </span>
               <span className="hint">
-                {count}/{room.cardsPerPlayer}
+                {count}/{q}
                 {p.ready ? " ✓" : ""}
               </span>
             </div>

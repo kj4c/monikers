@@ -116,6 +116,10 @@ export function RoomPage() {
   }
 
   const isHost = room.hostId === playerId;
+  const inGame =
+    room.phase === "playing" ||
+    room.phase === "roundEnd" ||
+    room.phase === "gameOver";
   const phaseLabel =
     room.phase === "lobby"
       ? "Lobby"
@@ -131,9 +135,11 @@ export function RoomPage() {
     <div className="app-shell">
       <header className="room-header">
         <div className="room-header-left">
-          <button type="button" className="btn-back" onClick={goHome}>
-            ← Back
-          </button>
+          {!inGame && (
+            <button type="button" className="btn-back" onClick={goHome}>
+              ← Back
+            </button>
+          )}
           <div className="room-code">{room.code}</div>
         </div>
         <div className="room-meta">

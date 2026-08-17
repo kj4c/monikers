@@ -31,6 +31,7 @@ import {
   handleSetCardsPerPlayer,
   handleSetCardSource,
   handleSetMaxSkips,
+  handleSetPointMultiplier,
   handleSetTurnSeconds,
   handleSwapTeam,
   handleTimeout,
@@ -211,6 +212,15 @@ io.on("connection", (socket) => {
     "lobby:setCardSource",
     ({ source }: { source: "custom" | "bank" }) => {
       withRoom((room, playerId) => handleSetCardSource(room, playerId, source));
+    }
+  );
+
+  socket.on(
+    "lobby:setPointMultiplier",
+    ({ enabled }: { enabled: boolean }) => {
+      withRoom((room, playerId) =>
+        handleSetPointMultiplier(room, playerId, enabled)
+      );
     }
   );
 

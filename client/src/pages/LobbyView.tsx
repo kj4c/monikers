@@ -7,7 +7,9 @@ import {
   MIN_CARDS_PER_PLAYER,
   MIN_TURN_SECONDS,
   PHRASE_BANK_SIZE,
+  cardsForPlayer,
   teamMultipliers,
+  totalCardsNeeded,
 } from "@monikers/shared";
 import type { Socket } from "socket.io-client";
 
@@ -25,12 +27,18 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
   const skips = room.maxSkips;
   const unlimited = skips <= 0;
   const usingBank = room.cardSource === "bank";
-  const bankNeed = room.players.length * n;
+  const bankNeed = totalCardsNeeded(room.players, n);
   const bankTooSmall = usingBank && bankNeed > PHRASE_BANK_SIZE;
-  const mult = teamMultipliers(room.players);
+  const previewMult = teamMultipliers(room.players, true);
   const uneven =
     t1.length > 0 && t2.length > 0 && t1.length !== t2.length;
-  const boostedTeam = mult.team1 > 1 ? 1 : 2;
+  const boostedTeam = previewMult.team1 > 1 ? 1 : 2;
+  const t1Cards = t1[0]
+    ? cardsForPlayer(room.players, n, t1[0])
+    : n;
+  const t2Cards = t2[0]
+    ? cardsForPlayer(room.players, n, t2[0])
+    : n;
 
   const setCount = (count: number) => {
     socket.emit("lobby:setCardsPerPlayer", { count });
@@ -46,8 +54,17 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
         Share code <strong>{room.code}</strong>.{" "}
         {usingBank ? (
           <>
-            We&apos;ll deal <strong>{n}</strong> cards each from the phrase
-            bank ({PHRASE_BANK_SIZE} phrases).
+            We&apos;ll deal cards from the phrase bank ({PHRASE_BANK_SIZE}{" "}
+            phrases)
+            {uneven
+              ? ` — Team 1 adds ${t1Cards} each, Team 2 adds ${t2Cards} each.`
+              : `, ${n} each.`}
+          </>
+        ) : uneven ? (
+          <>
+            Team 1 adds <strong>{t1Cards}</strong> cards each, Team 2 adds{" "}
+            <strong>{t2Cards}</strong> each so both sides put in the same
+            total.
           </>
         ) : (
           <>
@@ -92,11 +109,42 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
       </div>
 
       {uneven && (
-        <p className="hint">
-          Uneven teams — Team {boostedTeam} has fewer players, so their
-          points count{" "}
-          {formatMultiplier(mult.team1 > 1 ? mult.team1 : mult.team2)}.
-        </p>
+        <>
+          <p className="hint">
+            Smaller team writes extra cards so both teams contribute{" "}
+            {Math.max(t1.length, t2.length) * n} total.
+          </p>
+          {isHost && (
+            <button
+              type="button"
+              className={
+                room.pointMultiplier ? "btn-primary" : "btn-secondary"
+              }
+              onClick={() =>
+                socket.emit("lobby:setPointMultiplier", {
+                  enabled: !room.pointMultiplier,
+                })
+              }
+            >
+              {room.pointMultiplier
+                ? `Point boost on ${formatMultiplier(
+                    previewMult.team1 > 1
+                      ? previewMult.team1
+                      : previewMult.team2
+                  )} for Team ${boostedTeam}`
+                : "Enable point multiplier for smaller team"}
+            </button>
+          )}
+          {!isHost && room.pointMultiplier && (
+            <p className="hint">
+              Point boost on — Team {boostedTeam} scores{" "}
+              {formatMultiplier(
+                previewMult.team1 > 1 ? previewMult.team1 : previewMult.team2
+              )}
+              .
+            </p>
+          )}
+        </>
       )}
 
       {isHost && (

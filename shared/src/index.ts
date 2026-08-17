@@ -72,6 +72,8 @@ export interface RoomState {
   turnSeconds: number;
   /** Custom writing vs dealt phrase bank */
   cardSource: "custom" | "bank";
+  /** Host can boost the smaller team's points when sides are uneven */
+  pointMultiplier: boolean;
   /** playerId -> cards being built during cardSelect */
   submissions: Record<string, Card[]>;
   deck: Card[];
@@ -119,7 +121,13 @@ export function skipLimitReached(skipCount: number, maxSkips: number): boolean {
 }
 
 /** Smaller team gets larger/smaller so one extra opponent is a modest boost. */
-export function teamMultipliers(players: Player[]): Scores {
+export function teamMultipliers(
+  players: Player[],
+  enabled = false
+): Scores {
+  if (!enabled) {
+    return { team1: 1, team2: 1 };
+  }
   const team1 = players.filter((p) => p.team === 1).length;
   const team2 = players.filter((p) => p.team === 2).length;
   if (team1 === 0 || team2 === 0 || team1 === team2) {
@@ -129,6 +137,32 @@ export function teamMultipliers(players: Player[]): Scores {
     return { team1: team2 / team1, team2: 1 };
   }
   return { team1: 1, team2: team1 / team2 };
+}
+
+/** Cards this player should add so both teams contribute the same total. */
+export function cardsForPlayer(
+  players: Player[],
+  cardsPerPlayer: number,
+  player: Pick<Player, "team">
+): number {
+  const team1 = players.filter((p) => p.team === 1).length;
+  const team2 = players.filter((p) => p.team === 2).length;
+  if (team1 === 0 || team2 === 0 || team1 === team2) {
+    return cardsPerPlayer;
+  }
+  const larger = Math.max(team1, team2);
+  const mine = player.team === 1 ? team1 : team2;
+  return Math.ceil((larger * cardsPerPlayer) / mine);
+}
+
+export function totalCardsNeeded(
+  players: Player[],
+  cardsPerPlayer: number
+): number {
+  return players.reduce(
+    (sum, p) => sum + cardsForPlayer(players, cardsPerPlayer, p),
+    0
+  );
 }
 
 export function formatScore(n: number): string {

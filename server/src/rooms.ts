@@ -6,9 +6,11 @@ import {
   POINTS_MAX,
   POINTS_MIN,
   ROOM_CODE_LENGTH,
+  cardsForPlayer,
   clampCardsPerPlayer,
   clampMaxSkips,
   clampTurnSeconds,
+  totalCardsNeeded,
 } from "@monikers/shared";
 import { v4 as uuid } from "uuid";
 import {
@@ -273,6 +275,23 @@ export function handleDisconnect(socketId: string): RoomState | null {
   return room;
 }
 
+function quotaFor(room: RoomState, player: { id: string; team: Team }) {
+  return cardsForPlayer(room.players, room.cardsPerPlayer, player);
+}
+
+function syncCardQuotas(room: RoomState) {
+  for (const p of room.players) {
+    const q = quotaFor(room, p);
+    const cards = room.submissions[p.id] ?? [];
+    if (cards.length > q) {
+      room.submissions[p.id] = cards.slice(0, q);
+    }
+    const n = (room.submissions[p.id] ?? []).length;
+    p.cardsSubmitted = n >= q;
+    if (!p.cardsSubmitted) p.ready = false;
+  }
+}
+
 export function requireHost(room: RoomState, playerId: string): string | null {
   if (room.hostId !== playerId) return "Only the host can do that";
   return null;
@@ -289,6 +308,7 @@ export function handleShuffleTeams(room: RoomState, playerId: string) {
     return { error: "Cannot shuffle now" };
   }
   shuffleTeams(room);
+  syncCardQuotas(room);
   return {};
 }
 
@@ -303,6 +323,7 @@ export function handleSwapTeam(
     return { error: "Cannot swap now" };
   }
   swapTeam(room, targetPlayerId);
+  syncCardQuotas(room);
   return {};
 }
 
@@ -365,6 +386,20 @@ export function handleSetCardSource(
   return {};
 }
 
+export function handleSetPointMultiplier(
+  room: RoomState,
+  playerId: string,
+  enabled: boolean
+) {
+  const err = requireHost(room, playerId);
+  if (err) return { error: err };
+  if (room.phase !== "lobby") {
+    return { error: "Can only change that in the lobby" };
+  }
+  room.pointMultiplier = !!enabled;
+  return {};
+}
+
 export function handleStartFromBank(room: RoomState, playerId: string) {
   const err = requireHost(room, playerId);
   if (err) return { error: err };
@@ -373,7 +408,7 @@ export function handleStartFromBank(room: RoomState, playerId: string) {
     return { error: "Need at least 2 players, one on each team" };
   }
 
-  const need = room.players.length * room.cardsPerPlayer;
+  const need = totalCardsNeeded(room.players, room.cardsPerPlayer);
   if (need > PHRASE_BANK_SIZE) {
     return {
       error: `Phrase bank has ${PHRASE_BANK_SIZE} cards. Lower cards per player.`,
@@ -383,8 +418,9 @@ export function handleStartFromBank(room: RoomState, playerId: string) {
   const dealt = shuffle(PHRASE_BANK).slice(0, need);
   let i = 0;
   for (const p of room.players) {
+    const q = quotaFor(room, p);
     const cards: Card[] = [];
-    for (let n = 0; n < room.cardsPerPlayer; n++) {
+    for (let n = 0; n < q; n++) {
       const phrase = dealt[i++]!;
       cards.push({
         id: uuid(),
@@ -435,7 +471,8 @@ export function handleAddCard(
   if (!player) return { error: "Not in room" };
 
   const cards = room.submissions[playerId] ?? [];
-  if (cards.length >= room.cardsPerPlayer) {
+  const q = quotaFor(room, player);
+  if (cards.length >= q) {
     return { error: "You already have enough cards" };
   }
 
@@ -477,7 +514,7 @@ export function handleAddCard(
   cards.push(card);
   room.submissions[playerId] = cards;
 
-  if (cards.length >= room.cardsPerPlayer) {
+  if (cards.length >= q) {
     player.cardsSubmitted = true;
   }
 
@@ -528,7 +565,7 @@ export function handleRemoveCard(
   const cards = room.submissions[playerId] ?? [];
   room.submissions[playerId] = cards.filter((c) => c.id !== cardId);
   player.cardsSubmitted =
-    room.submissions[playerId].length >= room.cardsPerPlayer;
+    room.submissions[playerId].length >= quotaFor(room, player);
   player.ready = false;
   return {};
 }
@@ -538,9 +575,10 @@ export function handleCardsDone(room: RoomState, playerId: string) {
   const player = requirePlayer(room, playerId);
   if (!player) return { error: "Not in room" };
   const cards = room.submissions[playerId] ?? [];
-  if (cards.length < room.cardsPerPlayer) {
+  const q = quotaFor(room, player);
+  if (cards.length < q) {
     return {
-      error: `Add ${room.cardsPerPlayer - cards.length} more card(s)`,
+      error: `Add ${q - cards.length} more card(s)`,
     };
   }
   player.cardsSubmitted = true;

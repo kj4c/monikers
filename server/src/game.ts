@@ -3,6 +3,7 @@ import {
   DEFAULT_CARDS_PER_PLAYER,
   DEFAULT_MAX_SKIPS,
   DEFAULT_TURN_SECONDS,
+  cardsForPlayer,
   skipLimitReached,
   teamMultipliers,
 } from "@monikers/shared";
@@ -30,6 +31,7 @@ export function createEmptyRoom(code: string, hostId: string): RoomState {
     maxSkips: DEFAULT_MAX_SKIPS,
     turnSeconds: DEFAULT_TURN_SECONDS,
     cardSource: "custom",
+    pointMultiplier: false,
     submissions: {},
     deck: [],
     skipPile: [],
@@ -255,7 +257,7 @@ export function gotIt(room: RoomState): { ok: boolean; error?: string } {
     team: room.turn.team,
     playerId: room.turn.playerId,
   });
-  const mult = teamMultipliers(room.players);
+  const mult = teamMultipliers(room.players, room.pointMultiplier);
   const awarded =
     card.points * (room.turn.team === 1 ? mult.team1 : mult.team2);
   if (room.turn.team === 1) {
@@ -412,7 +414,7 @@ export function canStartCardSelect(room: RoomState): boolean {
 export function allCardsSubmitted(room: RoomState): boolean {
   return room.players.every((p) => {
     const cards = room.submissions[p.id] ?? [];
-    return cards.length >= room.cardsPerPlayer;
+    return cards.length >= cardsForPlayer(room.players, room.cardsPerPlayer, p);
   });
 }
 
