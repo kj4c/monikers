@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { Points, RoomState } from "@monikers/shared";
+import { useState, type CSSProperties } from "react";
+import type { Card, Points, RoomState } from "@monikers/shared";
 import { pointColor } from "@monikers/shared";
 import type { Socket } from "socket.io-client";
 import { MonikerCard } from "../components/MonikerCard";
@@ -15,29 +15,70 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
   const mine = room.submissions[meId] ?? [];
   const me = room.players.find((p) => p.id === meId);
   const allSubmitted = room.players.every((p) => p.cardsSubmitted);
-  const [composerOpen, setComposerOpen] = useState(false);
+  const [editing, setEditing] = useState<Card | null | "new">(null);
   const [text, setText] = useState("");
   const [description, setDescription] = useState("");
   const [points, setPoints] = useState<Points>(1);
 
-  const slots = Array.from({ length: room.cardsPerPlayer }, (_, i) => mine[i] ?? null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmBack, setConfirmBack] = useState(false);
 
-  const addCard = () => {
-    if (!text.trim()) return;
-    socket.emit("cards:add", { text, description, points });
+  const slots = Array.from(
+    { length: room.cardsPerPlayer },
+    (_, i) => mine[i] ?? null
+  );
+  const slotCols =
+    room.cardsPerPlayer <= 1 ? 1 : room.cardsPerPlayer === 2 ? 2 : room.cardsPerPlayer <= 6 ? 3 : 4;
+
+  const openNew = () => {
+    setConfirmDelete(false);
+    setEditing("new");
     setText("");
     setDescription("");
     setPoints(1);
-    setComposerOpen(false);
+  };
+
+  const openEdit = (card: Card) => {
+    setEditing(card);
+    setText(card.text);
+    setDescription(card.description);
+    setPoints(card.points);
+  };
+
+  const closeSheet = () => {
+    setConfirmDelete(false);
+    setEditing(null);
+  };
+
+  const saveCard = () => {
+    if (!text.trim()) return;
+    if (editing && editing !== "new") {
+      socket.emit("cards:update", {
+        cardId: editing.id,
+        text,
+        description,
+        points,
+      });
+    } else {
+      socket.emit("cards:add", { text, description, points });
+    }
+    closeSheet();
+  };
+
+  const deleteCard = () => {
+    if (editing && editing !== "new") {
+      socket.emit("cards:remove", { cardId: editing.id });
+    }
+    closeSheet();
   };
 
   return (
-    <div className="stack">
+    <div className="stack fit-screen">
       <p className="hint">
-        Add <strong>{room.cardsPerPlayer}</strong> cards. Title + points (1–4).
+        Add <strong>{room.cardsPerPlayer}</strong> cards. Tap a card to edit.
       </p>
 
-      <div className="slot-grid">
+      <div className="slot-grid" style={{ "--slot-cols": slotCols } as CSSProperties}>
         {slots.map((card, i) =>
           card ? (
             <button
@@ -45,52 +86,50 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
               key={card.id}
               className="card-slot"
               style={{ borderColor: pointColor(card.points) }}
-              onClick={() => socket.emit("cards:remove", { cardId: card.id })}
+              onClick={() => openEdit(card)}
             >
               <div className="mini-title">{card.text}</div>
               <div
                 className="point-badge"
                 style={{
                   background: pointColor(card.points),
-                  width: 36,
-                  height: 36,
-                  fontSize: "0.65rem",
+                  width: 28,
+                  height: 28,
+                  fontSize: "0.6rem",
                 }}
               >
                 {card.points}
               </div>
-              <span className="hint" style={{ marginTop: 6, fontSize: "0.7rem" }}>
-                Tap to remove
-              </span>
             </button>
           ) : (
             <button
               type="button"
               key={`empty-${i}`}
               className="card-slot empty"
-              onClick={() => setComposerOpen(true)}
+              onClick={openNew}
               disabled={mine.length >= room.cardsPerPlayer}
             >
-              + Add your card
+              + Add
             </button>
           )
         )}
       </div>
 
-      <div className="stack">
-        <h3 style={{ margin: 0, fontSize: "0.95rem" }}>Everyone</h3>
+      <div className="player-status-row">
         {room.players.map((p) => {
           const count = (room.submissions[p.id] ?? []).length;
           return (
-            <div key={p.id} className="player-chip">
+            <div
+              key={p.id}
+              className={`player-chip compact ${p.id === meId ? "me" : ""}`}
+            >
               <span>
                 {p.name}
                 {p.id === meId ? " (you)" : ""}
               </span>
               <span className="hint">
                 {count}/{room.cardsPerPlayer}
-                {p.cardsSubmitted ? " ✓" : ""}
-                {p.ready ? " ready" : ""}
+                {p.ready ? " ✓" : ""}
               </span>
             </div>
           );
@@ -98,14 +137,14 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
       </div>
 
       {isHost && (
-        <div className="teams">
+        <div className="teams compact-teams">
           {[1, 2].map((team) => (
             <div className="team-col" key={team}>
               <h3>Team {team}</h3>
               {room.players
                 .filter((p) => p.team === team)
                 .map((p) => (
-                  <div key={p.id} className="player-chip">
+                  <div key={p.id} className="player-chip compact">
                     <span>{p.name}</span>
                     <button
                       type="button"
@@ -143,22 +182,21 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
         </button>
       )}
 
-      {me?.cardsSubmitted && !allSubmitted && (
-        <p className="hint">
-          You&apos;re set{me.ready ? " and ready" : ""} — waiting for others to
-          finish their cards…
-        </p>
+      {isHost && (
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={() => setConfirmBack(true)}
+        >
+          Back to lobby
+        </button>
       )}
 
-      {allSubmitted && me?.ready && !room.players.every((p) => p.ready) && (
-        <p className="hint">Waiting for everyone to ready up…</p>
-      )}
-
-      {composerOpen && (
-        <div className="modal-backdrop" onClick={() => setComposerOpen(false)}>
+      {editing !== null && (
+        <div className="modal-backdrop" onClick={closeSheet}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-body">
-              <h3>Add your card</h3>
+              <h3>{editing === "new" ? "Add your card" : "Edit card"}</h3>
               <input
                 placeholder="Title (what to guess)"
                 value={text}
@@ -171,7 +209,7 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={280}
-                rows={3}
+                rows={2}
               />
               <p className="hint">Points</p>
               <div className="points-picker">
@@ -195,17 +233,76 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
               )}
             </div>
             <div className="sheet-footer">
-              <button type="button" className="btn-primary" onClick={addCard}>
-                Add card
+              <button type="button" className="btn-primary" onClick={saveCard}>
+                {editing === "new" ? "Add card" : "Save"}
               </button>
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => setComposerOpen(false)}
-              >
+              {editing !== "new" && (
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  Delete
+                </button>
+              )}
+              <button type="button" className="btn-ghost" onClick={closeSheet}>
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {confirmBack && (
+        <div
+          className="modal-backdrop centered"
+          onClick={() => setConfirmBack(false)}
+        >
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Are you sure you want to go back?</h3>
+            <p className="hint" style={{ margin: 0 }}>
+              Everyone returns to the lobby and all cards are cleared.
+            </p>
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={() => {
+                setConfirmBack(false);
+                socket.emit("host:backToLobby");
+              }}
+            >
+              Yes, go back
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setConfirmBack(false)}
+            >
+              Stay here
+            </button>
+          </div>
+        </div>
+      )}
+      {confirmDelete && (
+        <div
+          className="modal-backdrop centered"
+          onClick={() => setConfirmDelete(false)}
+        >
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Delete this card?</h3>
+            <p className="hint" style={{ margin: 0 }}>
+              This can&apos;t be undone.
+            </p>
+            <button type="button" className="btn-danger" onClick={deleteCard}>
+              Yes, delete
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setConfirmDelete(false)}
+            >
+              Keep it
+            </button>
           </div>
         </div>
       )}

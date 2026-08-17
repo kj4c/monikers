@@ -1,8 +1,10 @@
 import type { Card, RoomState, Team } from "@monikers/shared";
 import {
   DEFAULT_CARDS_PER_PLAYER,
-  MAX_SKIPS,
-  TURN_MS,
+  DEFAULT_MAX_SKIPS,
+  DEFAULT_TURN_SECONDS,
+  skipLimitReached,
+  teamMultipliers,
 } from "@monikers/shared";
 
 export function shuffle<T>(arr: T[]): T[] {
@@ -25,6 +27,8 @@ export function createEmptyRoom(code: string, hostId: string): RoomState {
     phase: "lobby",
     players: [],
     cardsPerPlayer: DEFAULT_CARDS_PER_PLAYER,
+    maxSkips: DEFAULT_MAX_SKIPS,
+    turnSeconds: DEFAULT_TURN_SECONDS,
     submissions: {},
     deck: [],
     skipPile: [],
@@ -33,6 +37,9 @@ export function createEmptyRoom(code: string, hostId: string): RoomState {
     round: 1,
     turn: null,
     lastPlayerId: null,
+    pendingPlayerId: null,
+    timesUp: false,
+    firstTurnPending: false,
     turnIndex: 0,
     scores: emptyScores(),
     roundScores: emptyScores(),
@@ -96,12 +103,42 @@ export function startTurn(room: RoomState, playerId: string) {
   room.skipPile = [];
 
   const currentCard = room.deck.length > 0 ? room.deck[0] : null;
+  room.pendingPlayerId = null;
+  room.timesUp = false;
+  room.firstTurnPending = false;
   room.turn = {
     playerId,
     team: player.team,
-    endsAt: Date.now() + TURN_MS,
+    endsAt: Date.now() + room.turnSeconds * 1000,
+    timedOut: false,
     currentCard,
   };
+}
+
+function turnLocked(room: RoomState): boolean {
+  if (!room.turn) return true;
+  if (room.turn.timedOut) return true;
+  return Date.now() >= room.turn.endsAt;
+}
+
+function queueNextTurn(room: RoomState, currentId: string, timesUp: boolean) {
+  room.lastPlayerId = currentId;
+  if (room.skipPile.length > 0) {
+    room.deck = [...room.deck, ...room.skipPile];
+    room.skipPile = [];
+  }
+  room.turn = null;
+
+  if (room.deck.length === 0) {
+    room.timesUp = false;
+    room.pendingPlayerId = null;
+    endRound(room);
+    return;
+  }
+
+  const next = nextPlayerId(room, currentId);
+  room.pendingPlayerId = next;
+  room.timesUp = timesUp;
 }
 
 export function peekCurrentCard(room: RoomState): Card | null {
@@ -130,12 +167,15 @@ export function startGame(room: RoomState) {
   room.phase = "playing";
   room.lastPlayerId = null;
   room.turnIndex = 0;
+  room.timesUp = false;
+  room.firstTurnPending = true;
+  room.turn = null;
   room.players.forEach((p) => {
     p.ready = false;
   });
 
   const first = nextPlayerId(room, null);
-  if (first) startTurn(room, first);
+  room.pendingPlayerId = first;
 }
 
 /** Rematch with the same card pack; keeps players and teams. */
@@ -157,19 +197,21 @@ export function replayGame(room: RoomState): { ok: boolean; error?: string } {
   room.turn = null;
   room.lastPlayerId = null;
   room.turnIndex = 0;
+  room.timesUp = false;
+  room.firstTurnPending = true;
   room.players.forEach((p) => {
     p.ready = false;
   });
 
   const first = nextPlayerId(room, null);
-  if (first) startTurn(room, first);
+  room.pendingPlayerId = first;
   return { ok: true };
 }
 
-/** Back to lobby for a fresh card-select; keeps players and teams. */
+/** Back to lobby; keeps players, teams, and settings. Clears cards. */
 export function resetToLobby(room: RoomState): { ok: boolean; error?: string } {
-  if (room.phase !== "gameOver") {
-    return { ok: false, error: "Game is not over" };
+  if (room.phase !== "gameOver" && room.phase !== "cardSelect") {
+    return { ok: false, error: "Can't return to lobby now" };
   }
 
   room.phase = "lobby";
@@ -182,6 +224,9 @@ export function resetToLobby(room: RoomState): { ok: boolean; error?: string } {
   room.roundScores = emptyScores();
   room.turn = null;
   room.lastPlayerId = null;
+  room.pendingPlayerId = null;
+  room.timesUp = false;
+  room.firstTurnPending = false;
   room.turnIndex = 0;
   room.submissions = {};
   room.players.forEach((p) => {
@@ -196,18 +241,28 @@ export function gotIt(room: RoomState): { ok: boolean; error?: string } {
   if (room.phase !== "playing" || !room.turn) {
     return { ok: false, error: "Not playing" };
   }
+  if (turnLocked(room)) {
+    return { ok: false, error: "Time's up" };
+  }
   if (room.deck.length === 0) {
     return { ok: false, error: "No cards left" };
   }
 
   const card = room.deck.shift()!;
-  room.scoredThisRound.push({ card, team: room.turn.team });
+  room.scoredThisRound.push({
+    card,
+    team: room.turn.team,
+    playerId: room.turn.playerId,
+  });
+  const mult = teamMultipliers(room.players);
+  const awarded =
+    card.points * (room.turn.team === 1 ? mult.team1 : mult.team2);
   if (room.turn.team === 1) {
-    room.scores.team1 += card.points;
-    room.roundScores.team1 += card.points;
+    room.scores.team1 += awarded;
+    room.roundScores.team1 += awarded;
   } else {
-    room.scores.team2 += card.points;
-    room.roundScores.team2 += card.points;
+    room.scores.team2 += awarded;
+    room.roundScores.team2 += awarded;
   }
 
   syncCurrentCard(room);
@@ -226,11 +281,14 @@ export function skip(room: RoomState): { ok: boolean; error?: string } {
   if (room.phase !== "playing" || !room.turn) {
     return { ok: false, error: "Not playing" };
   }
+  if (turnLocked(room)) {
+    return { ok: false, error: "Time's up" };
+  }
   if (room.deck.length === 0) {
     return { ok: false, error: "No cards left" };
   }
-  if (room.skipPile.length >= MAX_SKIPS) {
-    return { ok: false, error: `Max ${MAX_SKIPS} skips` };
+  if (skipLimitReached(room.skipPile.length, room.maxSkips)) {
+    return { ok: false, error: "Skip limit reached" };
   }
 
   const card = room.deck.shift()!;
@@ -245,6 +303,9 @@ export function unskip(
 ): { ok: boolean; error?: string } {
   if (room.phase !== "playing" || !room.turn) {
     return { ok: false, error: "Not playing" };
+  }
+  if (turnLocked(room)) {
+    return { ok: false, error: "Time's up" };
   }
   const idx = room.skipPile.findIndex((c) => c.id === cardId);
   if (idx === -1) {
@@ -268,22 +329,39 @@ export function endTurn(room: RoomState): { ok: boolean; error?: string } {
     return { ok: false, error: "Not playing" };
   }
 
-  const currentId = room.turn.playerId;
-  room.lastPlayerId = currentId;
+  queueNextTurn(room, room.turn.playerId, false);
+  return { ok: true };
+}
 
-  // Return skips to the deck; startTurn will reshuffle for the next player
-  if (room.skipPile.length > 0) {
-    room.deck = [...room.deck, ...room.skipPile];
-    room.skipPile = [];
+export function expireTurn(room: RoomState): { ok: boolean; error?: string } {
+  if (room.phase !== "playing" || !room.turn) {
+    return { ok: false, error: "Not playing" };
   }
-
-  if (room.deck.length === 0) {
-    endRound(room);
-    return { ok: true };
+  if (Date.now() + 500 < room.turn.endsAt) {
+    return { ok: false, error: "Time remaining" };
   }
+  room.turn.timedOut = true;
+  queueNextTurn(room, room.turn.playerId, true);
+  return { ok: true };
+}
 
-  const next = nextPlayerId(room, currentId);
-  if (next) startTurn(room, next);
+export function startPendingTurn(
+  room: RoomState,
+  playerId: string
+): { ok: boolean; error?: string } {
+  if (room.phase !== "playing") {
+    return { ok: false, error: "Not playing" };
+  }
+  if (room.turn) {
+    return { ok: false, error: "A turn is already in progress" };
+  }
+  if (!room.pendingPlayerId) {
+    return { ok: false, error: "No one is waiting to start" };
+  }
+  if (room.pendingPlayerId !== playerId) {
+    return { ok: false, error: "Not your turn to start" };
+  }
+  startTurn(room, playerId);
   return { ok: true };
 }
 
@@ -295,6 +373,8 @@ export function endRound(room: RoomState) {
   room.turn = null;
   room.skipPile = [];
   room.deck = [];
+  room.pendingPlayerId = null;
+  room.timesUp = false;
 }
 
 export function nextRound(room: RoomState): { ok: boolean; error?: string } {
@@ -313,9 +393,12 @@ export function nextRound(room: RoomState): { ok: boolean; error?: string } {
   room.deck = shuffle([...room.roundCards]);
   room.skipPile = [];
   room.phase = "playing";
+  room.timesUp = false;
+  room.firstTurnPending = true;
+  room.turn = null;
 
   const next = nextPlayerId(room, room.lastPlayerId);
-  if (next) startTurn(room, next);
+  room.pendingPlayerId = next;
   return { ok: true };
 }
 

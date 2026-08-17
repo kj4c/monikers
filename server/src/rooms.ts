@@ -5,6 +5,8 @@ import {
   POINTS_MIN,
   ROOM_CODE_LENGTH,
   clampCardsPerPlayer,
+  clampMaxSkips,
+  clampTurnSeconds,
 } from "@monikers/shared";
 import { v4 as uuid } from "uuid";
 import {
@@ -13,6 +15,7 @@ import {
   canStartCardSelect,
   createEmptyRoom,
   endTurn,
+  expireTurn,
   gotIt,
   nextRound,
   replayGame,
@@ -21,6 +24,7 @@ import {
   shuffleTeams,
   skip,
   startGame,
+  startPendingTurn,
   swapTeam,
   unskip,
 } from "./game.js";
@@ -313,6 +317,34 @@ export function handleSetCardsPerPlayer(
   return {};
 }
 
+export function handleSetMaxSkips(
+  room: RoomState,
+  playerId: string,
+  count: number
+) {
+  const err = requireHost(room, playerId);
+  if (err) return { error: err };
+  if (room.phase !== "lobby") {
+    return { error: "Can only change skips in the lobby" };
+  }
+  room.maxSkips = clampMaxSkips(count);
+  return {};
+}
+
+export function handleSetTurnSeconds(
+  room: RoomState,
+  playerId: string,
+  seconds: number
+) {
+  const err = requireHost(room, playerId);
+  if (err) return { error: err };
+  if (room.phase !== "lobby") {
+    return { error: "Can only change the timer in the lobby" };
+  }
+  room.turnSeconds = clampTurnSeconds(seconds);
+  return {};
+}
+
 export function handleStartCardSelect(room: RoomState, playerId: string) {
   const err = requireHost(room, playerId);
   if (err) return { error: err };
@@ -368,6 +400,37 @@ export function handleAddCard(
     player.cardsSubmitted = true;
   }
 
+  player.ready = false;
+  return {};
+}
+
+export function handleUpdateCard(
+  room: RoomState,
+  playerId: string,
+  data: { cardId: string; text: string; description?: string; points: number }
+) {
+  if (room.phase !== "cardSelect") return { error: "Not in card select" };
+  const player = requirePlayer(room, playerId);
+  if (!player) return { error: "Not in room" };
+
+  const cards = room.submissions[playerId] ?? [];
+  const card = cards.find((c) => c.id === data.cardId);
+  if (!card) return { error: "Card not found" };
+
+  const text = data.text?.trim() ?? "";
+  if (!text) return { error: "Card needs a title" };
+  const points = data.points as Points;
+  if (
+    !Number.isInteger(points) ||
+    points < POINTS_MIN ||
+    points > POINTS_MAX
+  ) {
+    return { error: "Points must be 1–4" };
+  }
+
+  card.text = text.slice(0, 80);
+  card.description = (data.description ?? "").trim().slice(0, 280);
+  card.points = points;
   player.ready = false;
   return {};
 }
@@ -454,6 +517,14 @@ export function handleEndTurn(room: RoomState, playerId: string) {
   return endTurn(room);
 }
 
+export function handleTimeout(room: RoomState) {
+  return expireTurn(room);
+}
+
+export function handleStartTurn(room: RoomState, playerId: string) {
+  return startPendingTurn(room, playerId);
+}
+
 export function handleNextRound(room: RoomState, playerId: string) {
   const err = requireHost(room, playerId);
   if (err) return { error: err };
@@ -470,6 +541,10 @@ export function handleNewGame(room: RoomState, playerId: string) {
   const err = requireHost(room, playerId);
   if (err) return { error: err };
   return resetToLobby(room);
+}
+
+export function handleBackToLobby(room: RoomState, playerId: string) {
+  return handleNewGame(room, playerId);
 }
 
 /** Host ends the session — everyone goes home */

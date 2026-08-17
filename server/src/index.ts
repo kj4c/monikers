@@ -11,6 +11,7 @@ import {
   getRoom,
   getSocketBinding,
   handleAddCard,
+  handleBackToLobby,
   handleCardsDone,
   handleDisconnect,
   handleEndTurn,
@@ -25,9 +26,14 @@ import {
   handleShuffleTeams,
   handleSkip,
   handleStartCardSelect,
+  handleStartTurn,
   handleSetCardsPerPlayer,
+  handleSetMaxSkips,
+  handleSetTurnSeconds,
   handleSwapTeam,
+  handleTimeout,
   handleUnskip,
+  handleUpdateCard,
   joinRoom,
   rejoinRoom,
 } from "./rooms.js";
@@ -191,6 +197,14 @@ io.on("connection", (socket) => {
     withRoom((room, playerId) => handleSetCardsPerPlayer(room, playerId, count));
   });
 
+  socket.on("lobby:setMaxSkips", ({ count }: { count: number }) => {
+    withRoom((room, playerId) => handleSetMaxSkips(room, playerId, count));
+  });
+
+  socket.on("lobby:setTurnSeconds", ({ seconds }: { seconds: number }) => {
+    withRoom((room, playerId) => handleSetTurnSeconds(room, playerId, seconds));
+  });
+
   socket.on("lobby:swapTeam", ({ playerId }: { playerId: string }) => {
     withRoom((room, hostId) => handleSwapTeam(room, hostId, playerId));
   });
@@ -199,10 +213,19 @@ io.on("connection", (socket) => {
     withRoom((room, playerId) => handleStartCardSelect(room, playerId));
   });
 
+  socket.on("cards:add", (data: { text: string; description?: string; points: number }) => {
+    withRoom((room, playerId) => handleAddCard(room, playerId, data));
+  });
+
   socket.on(
-    "cards:add",
-    (data: { text: string; description?: string; points: number }) => {
-      withRoom((room, playerId) => handleAddCard(room, playerId, data));
+    "cards:update",
+    (data: {
+      cardId: string;
+      text: string;
+      description?: string;
+      points: number;
+    }) => {
+      withRoom((room, playerId) => handleUpdateCard(room, playerId, data));
     }
   );
 
@@ -238,6 +261,14 @@ io.on("connection", (socket) => {
     withRoom((room, playerId) => handleEndTurn(room, playerId));
   });
 
+  socket.on("turn:timeout", () => {
+    withRoom((room) => handleTimeout(room));
+  });
+
+  socket.on("turn:start", () => {
+    withRoom((room, playerId) => handleStartTurn(room, playerId));
+  });
+
   socket.on("host:nextRound", () => {
     withRoom((room, playerId) => handleNextRound(room, playerId));
   });
@@ -248,6 +279,10 @@ io.on("connection", (socket) => {
 
   socket.on("host:newGame", () => {
     withRoom((room, playerId) => handleNewGame(room, playerId));
+  });
+
+  socket.on("host:backToLobby", () => {
+    withRoom((room, playerId) => handleBackToLobby(room, playerId));
   });
 
   socket.on("host:goHome", () => {
