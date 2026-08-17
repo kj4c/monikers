@@ -83,13 +83,13 @@ export function PlayingView({ room, meId, socket }: Props) {
   const mult = teamMultipliers(room.players, room.pointMultiplier);
 
   useEffect(() => {
-    if (!turn || Date.now() < turn.endsAt) return;
+    if (room.timesUp || !turn || Date.now() < turn.endsAt) return;
     socket.emit("turn:timeout");
     const id = window.setInterval(() => {
       socket.emit("turn:timeout");
     }, 400);
     return () => window.clearInterval(id);
-  }, [timedOut, turn, socket]);
+  }, [timedOut, turn, room.timesUp, socket]);
 
   const warnSkipsUsed = () => {
     setSkipAlert(true);
@@ -149,11 +149,11 @@ export function PlayingView({ room, meId, socket }: Props) {
     } else {
       spawnBurst("skip");
     }
+    if (dir === "got") socket.emit("turn:gotIt");
+    else socket.emit("turn:skip");
     setAnimating(true);
     setOffset(dir === "got" ? 420 : -420);
     window.setTimeout(() => {
-      if (dir === "got") socket.emit("turn:gotIt");
-      else socket.emit("turn:skip");
       setOffset(0);
       setAnimating(false);
     }, 180);

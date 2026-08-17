@@ -610,14 +610,33 @@ export function handleHostStart(room: RoomState, playerId: string) {
   return {};
 }
 
+function staleTurnAction(room: RoomState) {
+  return !room.turn || room.timesUp || room.turn.timedOut;
+}
+
+function ignoreIfTurnOver(result: { error?: string }) {
+  if (
+    result.error === "Not playing" ||
+    result.error === "Time's up" ||
+    result.error === "Time remaining"
+  ) {
+    return { silent: true };
+  }
+  return result;
+}
+
 export function handleGotIt(room: RoomState, playerId: string) {
-  if (room.turn?.playerId !== playerId) return { error: "Not your turn" };
-  return gotIt(room);
+  if (staleTurnAction(room) || room.turn?.playerId !== playerId) {
+    return { silent: true };
+  }
+  return ignoreIfTurnOver(gotIt(room));
 }
 
 export function handleSkip(room: RoomState, playerId: string) {
-  if (room.turn?.playerId !== playerId) return { error: "Not your turn" };
-  return skip(room);
+  if (staleTurnAction(room) || room.turn?.playerId !== playerId) {
+    return { silent: true };
+  }
+  return ignoreIfTurnOver(skip(room));
 }
 
 export function handleUnskip(
@@ -625,21 +644,22 @@ export function handleUnskip(
   playerId: string,
   cardId: string
 ) {
-  if (room.turn?.playerId !== playerId) return { error: "Not your turn" };
-  return unskip(room, cardId);
+  if (staleTurnAction(room) || room.turn?.playerId !== playerId) {
+    return { silent: true };
+  }
+  return ignoreIfTurnOver(unskip(room, cardId));
 }
 
 export function handleEndTurn(room: RoomState, playerId: string) {
+  if (staleTurnAction(room)) return { silent: true };
   if (room.turn?.playerId !== playerId && room.hostId !== playerId) {
-    return { error: "Not your turn" };
+    return { silent: true };
   }
-  return endTurn(room);
+  return ignoreIfTurnOver(endTurn(room));
 }
 
 export function handleTimeout(room: RoomState) {
-  const result = expireTurn(room);
-  if (result.error === "Time remaining") return {};
-  return result;
+  return ignoreIfTurnOver(expireTurn(room));
 }
 
 export function handleStartTurn(room: RoomState, playerId: string) {

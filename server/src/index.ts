@@ -168,7 +168,7 @@ io.on("connection", (socket) => {
     handler: (
       room: NonNullable<ReturnType<typeof getRoom>>,
       playerId: string
-    ) => { error?: string; ended?: boolean; code?: string }
+    ) => { error?: string; ended?: boolean; code?: string; silent?: boolean }
   ) => {
     const binding = getSocketBinding(socket.id);
     if (!binding) {
@@ -185,6 +185,7 @@ io.on("connection", (socket) => {
       socket.emit("room:error", result.error);
       return;
     }
+    if (result.silent) return;
     if (result.ended && result.code) {
       io.to(result.code).emit("room:ended");
       return;
