@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import type { Card, Points, RoomState } from "@monikers/shared";
 import { PHRASE_BANK, cardsForPlayer, pointColor } from "@monikers/shared";
 import type { Socket } from "socket.io-client";
@@ -91,6 +92,15 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
   return (
     <div className="stack fit-screen">
       <div className="fit-screen-scroll">
+      {isHost && (
+        <button
+          type="button"
+          className="btn-ghost btn-small back-lobby"
+          onClick={() => setConfirmBack(true)}
+        >
+          ← Back to lobby
+        </button>
+      )}
       <p className="hint">
         Add <strong>{myQuota}</strong> cards. Tap a card to edit,
         or pick from the phrase bank.
@@ -210,18 +220,10 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
           Start game
         </button>
       )}
-
-      {isHost && (
-        <button
-          type="button"
-          className="btn-ghost"
-          onClick={() => setConfirmBack(true)}
-        >
-          Back to lobby
-        </button>
-      )}
       </div>
 
+      {createPortal(
+        <>
       {editing !== null && (
         <div className="modal-backdrop" onClick={closeSheet}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -397,6 +399,9 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
             </button>
           </div>
         </div>
+      )}
+        </>,
+        document.body
       )}
     </div>
   );

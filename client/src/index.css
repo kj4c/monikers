@@ -29,7 +29,8 @@ body,
 #root {
   margin: 0;
   height: 100%;
-  height: 100dvh;
+  height: 100svh;
+  max-height: 100svh;
   overflow: hidden;
 }
 
@@ -74,7 +75,8 @@ textarea:focus {
 }
 
 .app-shell {
-  height: 100dvh;
+  height: 100svh;
+  max-height: 100svh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -285,7 +287,7 @@ textarea:focus {
 .room-body {
   flex: 1;
   min-height: 0;
-  padding: 0.7rem 0.85rem calc(0.7rem + var(--safe-bottom));
+  padding: 0.7rem 0.85rem 1.25rem;
   max-width: 520px;
   width: 100%;
   margin: 0 auto;
@@ -301,6 +303,7 @@ textarea:focus {
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 1.5rem;
 }
 
 .room-body > .play-layout,
@@ -384,6 +387,13 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   gap: inherit;
+  padding-bottom: 1.5rem;
+}
+
+.back-lobby {
+  width: auto;
+  align-self: flex-start;
+  padding: 0.4rem 0.85rem;
 }
 
 .player-chip.me {
@@ -536,21 +546,19 @@ textarea:focus {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 80;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
   background: rgba(26, 26, 26, 0.45);
-  height: 100svh;
-  max-height: 100dvh;
 }
 
 .modal-backdrop.centered {
   justify-content: center;
   align-items: center;
   padding: 1rem;
-  z-index: 60;
+  z-index: 90;
 }
 
 .sheet {
@@ -558,7 +566,7 @@ textarea:focus {
   width: 100%;
   max-width: 520px;
   border-radius: 20px 20px 0 0;
-  max-height: calc(100svh - 0.75rem);
+  max-height: calc(100svh - 0.5rem);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -582,7 +590,7 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0.75rem 1.25rem calc(1rem + var(--safe-bottom));
+  padding: 0.75rem 1.25rem max(1.25rem, env(safe-area-inset-bottom, 0px));
   border-top: 1px solid #d5dde3;
   background: var(--white);
 }
