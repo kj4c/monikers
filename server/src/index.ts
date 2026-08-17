@@ -26,8 +26,10 @@ import {
   handleShuffleTeams,
   handleSkip,
   handleStartCardSelect,
+  handleStartFromBank,
   handleStartTurn,
   handleSetCardsPerPlayer,
+  handleSetCardSource,
   handleSetMaxSkips,
   handleSetTurnSeconds,
   handleSwapTeam,
@@ -205,6 +207,13 @@ io.on("connection", (socket) => {
     withRoom((room, playerId) => handleSetTurnSeconds(room, playerId, seconds));
   });
 
+  socket.on(
+    "lobby:setCardSource",
+    ({ source }: { source: "custom" | "bank" }) => {
+      withRoom((room, playerId) => handleSetCardSource(room, playerId, source));
+    }
+  );
+
   socket.on("lobby:swapTeam", ({ playerId }: { playerId: string }) => {
     withRoom((room, hostId) => handleSwapTeam(room, hostId, playerId));
   });
@@ -213,9 +222,21 @@ io.on("connection", (socket) => {
     withRoom((room, playerId) => handleStartCardSelect(room, playerId));
   });
 
-  socket.on("cards:add", (data: { text: string; description?: string; points: number }) => {
-    withRoom((room, playerId) => handleAddCard(room, playerId, data));
+  socket.on("lobby:startFromBank", () => {
+    withRoom((room, playerId) => handleStartFromBank(room, playerId));
   });
+
+  socket.on(
+    "cards:add",
+    (data: {
+      text: string;
+      description?: string;
+      points: number;
+      pack?: "custom" | "bank";
+    }) => {
+      withRoom((room, playerId) => handleAddCard(room, playerId, data));
+    }
+  );
 
   socket.on(
     "cards:update",

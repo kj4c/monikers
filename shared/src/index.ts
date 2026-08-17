@@ -28,6 +28,7 @@ export interface Card {
   description: string;
   points: Points;
   createdBy: string;
+  pack?: "custom" | "bank";
 }
 
 export interface Player {
@@ -69,6 +70,8 @@ export interface RoomState {
   maxSkips: number;
   /** Seconds on the turn clock */
   turnSeconds: number;
+  /** Custom writing vs dealt phrase bank */
+  cardSource: "custom" | "bank";
   /** playerId -> cards being built during cardSelect */
   submissions: Record<string, Card[]>;
   deck: Card[];
@@ -167,3 +170,6 @@ export function pointColor(points: Points): string {
       return "#E31C23";
   }
 }
+
+export { PHRASE_BANK, PHRASE_BANK_SIZE } from "./bank.js";
+export type { BankPhrase } from "./bank.js";

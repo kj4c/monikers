@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { createPortal } from "react-dom";
 import type { Card, RoomState } from "@monikers/shared";
 import {
   formatMultiplier,
@@ -413,40 +414,48 @@ export function PlayingView({ room, meId, socket }: Props) {
         </div>
       )}
 
-      {skipOpen && isClueGiver && !locked && (
-        <div className="modal-backdrop" onClick={() => setSkipOpen(false)}>
-          <div className="sheet stack" onClick={(e) => e.stopPropagation()}>
-            <h3>Skip pile</h3>
-            {room.skipPile.length === 0 && (
-              <p className="hint">No skipped cards</p>
-            )}
-            <div className="skip-list">
-              {room.skipPile.map((c) => (
-                <div key={c.id} className="skip-item">
-                  <span>{c.text}</span>
-                  <button
-                    type="button"
-                    className="btn-secondary btn-small"
-                    onClick={() => {
-                      socket.emit("turn:unskip", { cardId: c.id });
-                      setSkipOpen(false);
-                    }}
-                  >
-                    Unskip
-                  </button>
+      {skipOpen &&
+        isClueGiver &&
+        !locked &&
+        createPortal(
+          <div className="modal-backdrop" onClick={() => setSkipOpen(false)}>
+            <div className="sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="sheet-body">
+                <h3>Skip pile</h3>
+                {room.skipPile.length === 0 && (
+                  <p className="hint">No skipped cards</p>
+                )}
+                <div className="skip-list">
+                  {room.skipPile.map((c) => (
+                    <div key={c.id} className="skip-item">
+                      <span>{c.text}</span>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-small"
+                        onClick={() => {
+                          socket.emit("turn:unskip", { cardId: c.id });
+                          setSkipOpen(false);
+                        }}
+                      >
+                        Unskip
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+              <div className="sheet-footer">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setSkipOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => setSkipOpen(false)}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

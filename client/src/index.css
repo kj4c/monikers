@@ -169,6 +169,47 @@ textarea:focus {
   width: 100%;
 }
 
+.btn-secondary.selected {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.choice-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.choice-row button {
+  padding: 0.65rem 0.5rem;
+  font-size: 0.88rem;
+}
+
+.bank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 8rem;
+}
+
+.bank-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--bg-soft);
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  width: 100%;
+  text-align: left;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.bank-item:hover {
+  background: #cfd8de;
+}
+
 .btn-small {
   padding: 0.45rem 0.9rem;
   font-size: 0.85rem;
@@ -254,8 +295,15 @@ textarea:focus {
 }
 
 .room-body > .stack,
+.room-body > .tally {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .room-body > .play-layout,
-.room-body > .tally,
 .room-body > .fit-screen {
   flex: 1;
   min-height: 0;
@@ -323,6 +371,19 @@ textarea:focus {
 
 .fit-screen {
   overflow: hidden;
+  min-height: 0;
+}
+
+.fit-screen-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
 }
 
 .player-chip.me {
@@ -361,8 +422,11 @@ textarea:focus {
 
 .moniker-card.preview {
   min-height: 0;
+  height: auto;
+  flex: 0 0 auto;
   max-width: 280px;
-  padding: 1rem 0.9rem 0.9rem;
+  max-height: 14rem;
+  padding: 0.75rem 0.85rem 0.7rem;
   pointer-events: none;
 }
 
@@ -431,9 +495,8 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(var(--slot-cols, 2), minmax(0, 1fr));
   gap: 0.5rem;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
+  flex: 1 0 auto;
+  min-height: 7rem;
 }
 
 .card-slot {
@@ -447,7 +510,7 @@ textarea:focus {
   padding: 0.55rem;
   text-align: center;
   border: 2px dashed transparent;
-  min-height: 0;
+  min-height: 5.5rem;
   width: 100%;
   overflow: hidden;
 }
@@ -470,7 +533,21 @@ textarea:focus {
   -webkit-box-orient: vertical;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  background: rgba(26, 26, 26, 0.45);
+  height: 100svh;
+  max-height: 100dvh;
+}
+
 .modal-backdrop.centered {
+  justify-content: center;
   align-items: center;
   padding: 1rem;
   z-index: 60;
@@ -481,7 +558,7 @@ textarea:focus {
   width: 100%;
   max-width: 520px;
   border-radius: 20px 20px 0 0;
-  max-height: min(92dvh, 100%);
+  max-height: calc(100svh - 0.75rem);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -544,6 +621,14 @@ textarea:focus {
   gap: 0.45rem;
   align-items: stretch;
   overflow: hidden;
+}
+
+.play-layout > .modal-backdrop {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  max-height: none;
+  z-index: 20;
 }
 
 .play-kickoff-scene {
@@ -919,6 +1004,9 @@ textarea:focus {
   background: var(--white);
   width: calc(100% - 2rem);
   max-width: 360px;
+  max-height: calc(100svh - 2rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 18px;
   padding: 1.25rem 1.15rem calc(1.15rem + var(--safe-bottom));
   box-shadow: var(--shadow);

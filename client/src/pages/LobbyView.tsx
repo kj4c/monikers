@@ -6,6 +6,7 @@ import {
   MAX_TURN_SECONDS,
   MIN_CARDS_PER_PLAYER,
   MIN_TURN_SECONDS,
+  PHRASE_BANK_SIZE,
   teamMultipliers,
 } from "@monikers/shared";
 import type { Socket } from "socket.io-client";
@@ -23,6 +24,9 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
   const n = room.cardsPerPlayer;
   const skips = room.maxSkips;
   const unlimited = skips <= 0;
+  const usingBank = room.cardSource === "bank";
+  const bankNeed = room.players.length * n;
+  const bankTooSmall = usingBank && bankNeed > PHRASE_BANK_SIZE;
   const mult = teamMultipliers(room.players);
   const uneven =
     t1.length > 0 && t2.length > 0 && t1.length !== t2.length;
@@ -39,9 +43,18 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
   return (
     <div className="stack">
       <p className="hint">
-        Share code <strong>{room.code}</strong>. Each player will add{" "}
-        <strong>{n}</strong> custom cards. Skips:{" "}
-        <strong>{unlimited ? "unlimited" : skips}</strong>. Timer:{" "}
+        Share code <strong>{room.code}</strong>.{" "}
+        {usingBank ? (
+          <>
+            We&apos;ll deal <strong>{n}</strong> cards each from the phrase
+            bank ({PHRASE_BANK_SIZE} phrases).
+          </>
+        ) : (
+          <>
+            Each player will add <strong>{n}</strong> custom cards.
+          </>
+        )}{" "}
+        Skips: <strong>{unlimited ? "unlimited" : skips}</strong>. Timer:{" "}
         <strong>{room.turnSeconds}s</strong>.
       </p>
 
@@ -88,6 +101,39 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
 
       {isHost && (
         <div className="stack">
+          <div
+            className="team-col"
+            style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
+          >
+            <h3>Cards</h3>
+            <div className="choice-row">
+              <button
+                type="button"
+                className={usingBank ? "btn-secondary" : "btn-secondary selected"}
+                onClick={() =>
+                  socket.emit("lobby:setCardSource", { source: "custom" })
+                }
+              >
+                Write your own
+              </button>
+              <button
+                type="button"
+                className={usingBank ? "btn-secondary selected" : "btn-secondary"}
+                onClick={() =>
+                  socket.emit("lobby:setCardSource", { source: "bank" })
+                }
+              >
+                Phrase bank
+              </button>
+            </div>
+            {usingBank && (
+              <p className="hint" style={{ margin: 0 }}>
+                {bankTooSmall
+                  ? `Need ${bankNeed} cards, bank only has ${PHRASE_BANK_SIZE}. Lower cards per player.`
+                  : `Deals ${bankNeed} unique cards, then skips writing.`}
+              </p>
+            )}
+          </div>
           <div
             className="team-col"
             style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
@@ -197,14 +243,23 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
           <button
             type="button"
             className="btn-primary"
-            onClick={() => socket.emit("lobby:startCardSelect")}
+            disabled={bankTooSmall}
+            onClick={() =>
+              socket.emit(
+                usingBank ? "lobby:startFromBank" : "lobby:startCardSelect"
+              )
+            }
           >
-            Start card select
+            {usingBank ? "Start game" : "Start card select"}
           </button>
         </div>
       )}
       {!isHost && (
-        <p className="hint">Waiting for host to start card select…</p>
+        <p className="hint">
+          {usingBank
+            ? "Waiting for host to start the game…"
+            : "Waiting for host to start card select…"}
+        </p>
       )}
     </div>
   );

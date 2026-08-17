@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import type { Card, Points, RoomState } from "@monikers/shared";
-import { pointColor } from "@monikers/shared";
+import { PHRASE_BANK, pointColor } from "@monikers/shared";
 import type { Socket } from "socket.io-client";
 import { MonikerCard } from "../components/MonikerCard";
 
@@ -22,6 +22,19 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmBack, setConfirmBack] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false);
+  const [bankQuery, setBankQuery] = useState("");
+
+  const usedPhrases = new Set(
+    Object.values(room.submissions)
+      .flat()
+      .map((c) => c.text.toLowerCase())
+  );
+  const bankOptions = PHRASE_BANK.filter((p) => {
+    if (usedPhrases.has(p.text.toLowerCase())) return false;
+    const q = bankQuery.trim().toLowerCase();
+    return !q || p.text.toLowerCase().includes(q);
+  });
 
   const slots = Array.from(
     { length: room.cardsPerPlayer },
@@ -74,8 +87,10 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
 
   return (
     <div className="stack fit-screen">
+      <div className="fit-screen-scroll">
       <p className="hint">
-        Add <strong>{room.cardsPerPlayer}</strong> cards. Tap a card to edit.
+        Add <strong>{room.cardsPerPlayer}</strong> cards. Tap a card to edit,
+        or pick from the phrase bank.
       </p>
 
       <div className="slot-grid" style={{ "--slot-cols": slotCols } as CSSProperties}>
@@ -114,6 +129,16 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
           )
         )}
       </div>
+
+      {mine.length < room.cardsPerPlayer && (
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => setBankOpen(true)}
+        >
+          Pick from phrase bank
+        </button>
+      )}
 
       <div className="player-status-row">
         {room.players.map((p) => {
@@ -191,6 +216,7 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
           Back to lobby
         </button>
       )}
+      </div>
 
       {editing !== null && (
         <div className="modal-backdrop" onClick={closeSheet}>
@@ -253,6 +279,68 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
         </div>
       )}
 
+      {bankOpen && (
+        <div className="modal-backdrop" onClick={() => setBankOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-body">
+              <h3>Phrase bank</h3>
+              <input
+                placeholder="Search phrases"
+                value={bankQuery}
+                onChange={(e) => setBankQuery(e.target.value)}
+                autoFocus
+              />
+              <div className="bank-list">
+                {bankOptions.length === 0 && (
+                  <p className="hint">No matching phrases left</p>
+                )}
+                {bankOptions.map((p) => (
+                  <button
+                    type="button"
+                    key={p.text}
+                    className="bank-item"
+                    onClick={() => {
+                      socket.emit("cards:add", {
+                        text: p.text,
+                        description: "",
+                        points: p.points,
+                        pack: "bank",
+                      });
+                      setBankOpen(false);
+                      setBankQuery("");
+                    }}
+                  >
+                    <span>{p.text}</span>
+                    <span
+                      className="point-badge"
+                      style={{
+                        background: pointColor(p.points),
+                        width: 28,
+                        height: 28,
+                        fontSize: "0.6rem",
+                      }}
+                    >
+                      {p.points}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="sheet-footer">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => {
+                  setBankOpen(false);
+                  setBankQuery("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {confirmBack && (
         <div
           className="modal-backdrop centered"

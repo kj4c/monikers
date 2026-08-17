@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import type { Card, Points, RoomState, Team } from "@monikers/shared";
 import {
+  PHRASE_BANK,
+  PHRASE_BANK_SIZE,
   POINTS_MAX,
   POINTS_MIN,
   ROOM_CODE_LENGTH,
@@ -21,6 +23,7 @@ import {
   replayGame,
   resetToLobby,
   sanitizeStateForPlayer,
+  shuffle,
   shuffleTeams,
   skip,
   startGame,
@@ -345,6 +348,62 @@ export function handleSetTurnSeconds(
   return {};
 }
 
+export function handleSetCardSource(
+  room: RoomState,
+  playerId: string,
+  source: "custom" | "bank"
+) {
+  const err = requireHost(room, playerId);
+  if (err) return { error: err };
+  if (room.phase !== "lobby") {
+    return { error: "Can only change cards in the lobby" };
+  }
+  if (source !== "custom" && source !== "bank") {
+    return { error: "Invalid card source" };
+  }
+  room.cardSource = source;
+  return {};
+}
+
+export function handleStartFromBank(room: RoomState, playerId: string) {
+  const err = requireHost(room, playerId);
+  if (err) return { error: err };
+  if (room.phase !== "lobby") return { error: "Already past lobby" };
+  if (!canStartCardSelect(room)) {
+    return { error: "Need at least 2 players, one on each team" };
+  }
+
+  const need = room.players.length * room.cardsPerPlayer;
+  if (need > PHRASE_BANK_SIZE) {
+    return {
+      error: `Phrase bank has ${PHRASE_BANK_SIZE} cards. Lower cards per player.`,
+    };
+  }
+
+  const dealt = shuffle(PHRASE_BANK).slice(0, need);
+  let i = 0;
+  for (const p of room.players) {
+    const cards: Card[] = [];
+    for (let n = 0; n < room.cardsPerPlayer; n++) {
+      const phrase = dealt[i++]!;
+      cards.push({
+        id: uuid(),
+        text: phrase.text,
+        description: "",
+        points: phrase.points,
+        createdBy: p.id,
+        pack: "bank",
+      });
+    }
+    room.submissions[p.id] = cards;
+    p.cardsSubmitted = true;
+    p.ready = true;
+  }
+
+  startGame(room);
+  return {};
+}
+
 export function handleStartCardSelect(room: RoomState, playerId: string) {
   const err = requireHost(room, playerId);
   if (err) return { error: err };
@@ -364,7 +423,12 @@ export function handleStartCardSelect(room: RoomState, playerId: string) {
 export function handleAddCard(
   room: RoomState,
   playerId: string,
-  data: { text: string; description?: string; points: number }
+  data: {
+    text: string;
+    description?: string;
+    points: number;
+    pack?: "custom" | "bank";
+  }
 ) {
   if (room.phase !== "cardSelect") return { error: "Not in card select" };
   const player = requirePlayer(room, playerId);
@@ -386,12 +450,29 @@ export function handleAddCard(
     return { error: "Points must be 1–4" };
   }
 
+  const pack = data.pack === "bank" ? "bank" : "custom";
+  let title = text.slice(0, 80);
+  let value = points;
+  if (pack === "bank") {
+    const phrase = PHRASE_BANK.find(
+      (p) => p.text.toLowerCase() === text.toLowerCase()
+    );
+    if (!phrase) return { error: "Not in the phrase bank" };
+    const taken = Object.values(room.submissions)
+      .flat()
+      .some((c) => c.text.toLowerCase() === phrase.text.toLowerCase());
+    if (taken) return { error: "Someone already picked that one" };
+    title = phrase.text;
+    value = phrase.points;
+  }
+
   const card: Card = {
     id: uuid(),
-    text: text.slice(0, 80),
+    text: title,
     description: (data.description ?? "").trim().slice(0, 280),
-    points,
+    points: value,
     createdBy: playerId,
+    pack,
   };
   cards.push(card);
   room.submissions[playerId] = cards;

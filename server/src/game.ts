@@ -29,6 +29,7 @@ export function createEmptyRoom(code: string, hostId: string): RoomState {
     cardsPerPlayer: DEFAULT_CARDS_PER_PLAYER,
     maxSkips: DEFAULT_MAX_SKIPS,
     turnSeconds: DEFAULT_TURN_SECONDS,
+    cardSource: "custom",
     submissions: {},
     deck: [],
     skipPile: [],
