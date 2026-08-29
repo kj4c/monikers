@@ -31,6 +31,7 @@ import {
   startGame,
   startPendingTurn,
   swapTeam,
+  undoGotIt,
   unskip,
 } from "./game.js";
 
@@ -325,6 +326,33 @@ export function handleSwapTeam(
   swapTeam(room, targetPlayerId);
   syncCardQuotas(room);
   return {};
+}
+
+export function handleRemovePlayer(
+  room: RoomState,
+  hostId: string,
+  targetPlayerId: string
+): { error?: string; removed?: boolean; targetPlayerId?: string } {
+  const err = requireHost(room, hostId);
+  if (err) return { error: err };
+  if (room.phase !== "lobby" && room.phase !== "cardSelect") {
+    return { error: "Cannot remove players now" };
+  }
+  if (targetPlayerId === hostId) {
+    return { error: "Cannot remove yourself" };
+  }
+  const target = requirePlayer(room, targetPlayerId);
+  if (!target) return { error: "Player not found" };
+
+  room.players = room.players.filter((p) => p.id !== targetPlayerId);
+  delete room.submissions[targetPlayerId];
+
+  for (const [sid, b] of sockets) {
+    if (b.playerId === targetPlayerId) sockets.delete(sid);
+  }
+
+  syncCardQuotas(room);
+  return { removed: true, targetPlayerId };
 }
 
 export function handleSetCardsPerPlayer(
@@ -630,6 +658,15 @@ export function handleGotIt(room: RoomState, playerId: string) {
     return { silent: true };
   }
   return ignoreIfTurnOver(gotIt(room));
+}
+
+export function handleUndoGotIt(room: RoomState, playerId: string) {
+  if (staleTurnAction(room) || room.turn?.playerId !== playerId) {
+    return { silent: true };
+  }
+  const result = undoGotIt(room);
+  if (!result.ok) return { error: result.error };
+  return {};
 }
 
 export function handleSkip(room: RoomState, playerId: string) {

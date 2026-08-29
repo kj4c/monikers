@@ -280,6 +280,37 @@ export function gotIt(room: RoomState): { ok: boolean; error?: string } {
   return { ok: true };
 }
 
+export function undoGotIt(room: RoomState): { ok: boolean; error?: string } {
+  if (room.phase !== "playing" || !room.turn) {
+    return { ok: false, error: "Not playing" };
+  }
+  if (turnLocked(room)) {
+    return { ok: false, error: "Time's up" };
+  }
+
+  const last = room.scoredThisRound.at(-1);
+  if (!last || last.playerId !== room.turn.playerId) {
+    return { ok: false, error: "Nothing to undo" };
+  }
+
+  room.scoredThisRound.pop();
+  const { card, team } = last;
+  room.deck.unshift(card);
+
+  const mult = teamMultipliers(room.players, room.pointMultiplier);
+  const awarded = card.points * (team === 1 ? mult.team1 : mult.team2);
+  if (team === 1) {
+    room.scores.team1 -= awarded;
+    room.roundScores.team1 -= awarded;
+  } else {
+    room.scores.team2 -= awarded;
+    room.roundScores.team2 -= awarded;
+  }
+
+  syncCurrentCard(room);
+  return { ok: true };
+}
+
 export function skip(room: RoomState): { ok: boolean; error?: string } {
   if (room.phase !== "playing" || !room.turn) {
     return { ok: false, error: "Not playing" };

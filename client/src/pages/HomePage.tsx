@@ -21,7 +21,9 @@ export function HomePage() {
     navState?.joinCode ? "join" : "create"
   );
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(
+    () => navState?.message ?? null
+  );
   const [dialog, setDialog] = useState<{
     open: boolean;
     message: string;
@@ -38,7 +40,7 @@ export function HomePage() {
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (navState?.needName || navState?.joinCode) {
+    if (navState?.needName || navState?.joinCode || navState?.message) {
       navigate(".", { replace: true, state: null });
     }
   }, [navState, navigate]);
@@ -82,55 +84,57 @@ export function HomePage() {
   };
 
   return (
-    <div className="app-shell">
-      <header className="brand-hero">
-        <h1 className="brand-title">Monikers</h1>
-        <p className="brand-sub">Pass the phone. Make them guess.</p>
-      </header>
-      <section className="panel stack">
-        <div className="row">
-          <button
-            type="button"
-            className={mode === "create" ? "btn-primary" : "btn-secondary"}
-            onClick={() => setMode("create")}
-          >
-            Create
-          </button>
-          <button
-            type="button"
-            className={mode === "join" ? "btn-primary" : "btn-secondary"}
-            onClick={() => setMode("join")}
-          >
-            Join
-          </button>
-        </div>
-        <input
-          ref={nameRef}
-          placeholder="Your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={24}
-          autoComplete="nickname"
-        />
-        {mode === "join" && (
+    <div className="app-shell home-page">
+      <div className="home-layout">
+        <header className="brand-hero">
+          <h1 className="brand-title">Monikers</h1>
+          <p className="brand-sub">Pass the phone. Make them guess.</p>
+        </header>
+        <section className="panel stack">
+          <div className="row">
+            <button
+              type="button"
+              className={mode === "create" ? "btn-primary" : "btn-secondary"}
+              onClick={() => setMode("create")}
+            >
+              Create
+            </button>
+            <button
+              type="button"
+              className={mode === "join" ? "btn-primary" : "btn-secondary"}
+              onClick={() => setMode("join")}
+            >
+              Join
+            </button>
+          </div>
           <input
-            placeholder="Room code"
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            maxLength={6}
-            autoCapitalize="characters"
+            ref={nameRef}
+            placeholder="Your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={24}
+            autoComplete="nickname"
           />
-        )}
-        {err && <div className="error-banner">{err}</div>}
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={busy}
-          onClick={() => void submit()}
-        >
-          {busy ? "…" : mode === "create" ? "Create room" : "Join room"}
-        </button>
-      </section>
+          {mode === "join" && (
+            <input
+              placeholder="Room code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              maxLength={6}
+              autoCapitalize="characters"
+            />
+          )}
+          {err && <div className="error-banner">{err}</div>}
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy}
+            onClick={() => void submit()}
+          >
+            {busy ? "…" : mode === "create" ? "Create room" : "Join room"}
+          </button>
+        </section>
+      </div>
 
       {dialog.open && (
         <div

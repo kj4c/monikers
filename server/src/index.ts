@@ -22,6 +22,7 @@ import {
   handleNextRound,
   handleReady,
   handleRemoveCard,
+  handleRemovePlayer,
   handleReplay,
   handleShuffleTeams,
   handleSkip,
@@ -36,6 +37,7 @@ import {
   handleSwapTeam,
   handleTimeout,
   handleUnskip,
+  handleUndoGotIt,
   handleUpdateCard,
   joinRoom,
   rejoinRoom,
@@ -168,7 +170,14 @@ io.on("connection", (socket) => {
     handler: (
       room: NonNullable<ReturnType<typeof getRoom>>,
       playerId: string
-    ) => { error?: string; ended?: boolean; code?: string; silent?: boolean }
+    ) => {
+      error?: string;
+      ended?: boolean;
+      code?: string;
+      silent?: boolean;
+      removed?: boolean;
+      targetPlayerId?: string;
+    }
   ) => {
     const binding = getSocketBinding(socket.id);
     if (!binding) {
@@ -189,6 +198,9 @@ io.on("connection", (socket) => {
     if (result.ended && result.code) {
       io.to(result.code).emit("room:ended");
       return;
+    }
+    if (result.removed && result.targetPlayerId) {
+      io.to(result.targetPlayerId).emit("room:kicked");
     }
     broadcast(room.code);
   };
@@ -227,6 +239,10 @@ io.on("connection", (socket) => {
 
   socket.on("lobby:swapTeam", ({ playerId }: { playerId: string }) => {
     withRoom((room, hostId) => handleSwapTeam(room, hostId, playerId));
+  });
+
+  socket.on("host:removePlayer", ({ playerId }: { playerId: string }) => {
+    withRoom((room, hostId) => handleRemovePlayer(room, hostId, playerId));
   });
 
   socket.on("lobby:startCardSelect", () => {
@@ -279,6 +295,10 @@ io.on("connection", (socket) => {
 
   socket.on("turn:gotIt", () => {
     withRoom((room, playerId) => handleGotIt(room, playerId));
+  });
+
+  socket.on("turn:undoGotIt", () => {
+    withRoom((room, playerId) => handleUndoGotIt(room, playerId));
   });
 
   socket.on("turn:skip", () => {

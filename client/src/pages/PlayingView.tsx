@@ -81,6 +81,12 @@ export function PlayingView({ room, meId, socket }: Props) {
   const faceCard = isRoundKickoff ? KICKOFF_CARD : current;
   const clock = isRoundKickoff ? room.turnSeconds : seconds;
   const mult = teamMultipliers(room.players, room.pointMultiplier);
+  const lastScored = room.scoredThisRound.at(-1);
+  const canUndoGotIt =
+    isClueGiver &&
+    !locked &&
+    !isRoundKickoff &&
+    lastScored?.playerId === meId;
 
   useEffect(() => {
     if (room.timesUp || !turn || Date.now() < turn.endsAt) return;
@@ -206,6 +212,19 @@ export function PlayingView({ room, meId, socket }: Props) {
         <strong>Round {room.round}</strong>
         <span>{roundRule(room.round)}</span>
       </div>
+
+      {isClueGiver && turn && !showTimesUp && !isRoundKickoff && (
+        <div className="play-top-actions">
+          <button
+            type="button"
+            className="btn-end-turn"
+            disabled={locked}
+            onClick={() => socket.emit("turn:end")}
+          >
+            End my turn
+          </button>
+        </div>
+      )}
 
       <div className="scores-bar">
         <div
@@ -362,7 +381,7 @@ export function PlayingView({ room, meId, socket }: Props) {
             </button>
           </div>
 
-          <div className="action-row">
+          <div className={`action-row${canUndoGotIt ? "" : " single"}`}>
             <button
               type="button"
               className="btn-secondary"
@@ -371,14 +390,16 @@ export function PlayingView({ room, meId, socket }: Props) {
             >
               Skips {skipLabel(room.skipPile.length, room.maxSkips)}
             </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              disabled={!isRoundKickoff && locked}
-              onClick={() => socket.emit("turn:end")}
-            >
-              End my turn
-            </button>
+            {canUndoGotIt && (
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={animating}
+                onClick={() => socket.emit("turn:undoGotIt")}
+              >
+                Undo last card
+              </button>
+            )}
           </div>
         </>
       )}

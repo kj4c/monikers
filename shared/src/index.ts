@@ -165,6 +165,21 @@ export function totalCardsNeeded(
   );
 }
 
+/** Sum of card point values each team has submitted during card select. */
+export function teamCardPointTotals(
+  players: Player[],
+  submissions: Record<string, Card[]>
+): Scores {
+  let team1 = 0;
+  let team2 = 0;
+  for (const p of players) {
+    const total = (submissions[p.id] ?? []).reduce((sum, c) => sum + c.points, 0);
+    if (p.team === 1) team1 += total;
+    else team2 += total;
+  }
+  return { team1, team2 };
+}
+
 export function formatScore(n: number): string {
   const rounded = Math.round(n * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);

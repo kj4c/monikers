@@ -127,11 +127,18 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       setRoom(null);
       window.dispatchEvent(new CustomEvent("monikers:ended"));
     };
+    const onKicked = () => {
+      clearSession();
+      setPlayerId(null);
+      setRoom(null);
+      window.dispatchEvent(new CustomEvent("monikers:kicked"));
+    };
 
     socket.on("connect", onConnect);
     socket.on("room:state", onState);
     socket.on("room:error", onError);
     socket.on("room:ended", onEnded);
+    socket.on("room:kicked", onKicked);
     if (socket.connected) onConnect();
 
     return () => {
@@ -139,6 +146,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       socket.off("room:state", onState);
       socket.off("room:error", onError);
       socket.off("room:ended", onEnded);
+      socket.off("room:kicked", onKicked);
     };
   }, [socket, rejoinSession]);
 

@@ -89,15 +89,28 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
                   {p.id === room.hostId ? " ★" : ""}
                 </span>
                 {isHost && (
-                  <button
-                    type="button"
-                    className="btn-secondary btn-small"
-                    onClick={() =>
-                      socket.emit("lobby:swapTeam", { playerId: p.id })
-                    }
-                  >
-                    Swap
-                  </button>
+                  <div className="player-actions">
+                    <button
+                      type="button"
+                      className="btn-secondary btn-small"
+                      onClick={() =>
+                        socket.emit("lobby:swapTeam", { playerId: p.id })
+                      }
+                    >
+                      Swap
+                    </button>
+                    {p.id !== meId && (
+                      <button
+                        type="button"
+                        className="btn-danger btn-small"
+                        onClick={() =>
+                          socket.emit("host:removePlayer", { playerId: p.id })
+                        }
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}

@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { Card, Points, RoomState } from "@monikers/shared";
-import { PHRASE_BANK, cardsForPlayer, pointColor } from "@monikers/shared";
+import { PHRASE_BANK, cardsForPlayer, pointColor, teamCardPointTotals } from "@monikers/shared";
 import type { Socket } from "socket.io-client";
 import { MonikerCard } from "../components/MonikerCard";
 
@@ -26,6 +26,7 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmBack, setConfirmBack] = useState(false);
+  const [confirmStart, setConfirmStart] = useState(false);
   const [bankOpen, setBankOpen] = useState(false);
   const [bankQuery, setBankQuery] = useState("");
 
@@ -46,6 +47,10 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
   );
   const slotCols =
     myQuota <= 1 ? 1 : myQuota === 2 ? 2 : myQuota <= 6 ? 3 : 4;
+  const teamPoints = teamCardPointTotals(room.players, room.submissions);
+  const pointGap = Math.abs(teamPoints.team1 - teamPoints.team2);
+  const canStart =
+    isHost && allSubmitted && room.players.every((p) => p.ready);
 
   const openNew = () => {
     setConfirmDelete(false);
@@ -105,6 +110,26 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
         Add <strong>{myQuota}</strong> cards. Tap a card to edit,
         or pick from the phrase bank.
       </p>
+
+      <div className="score-block totals">
+        <p className="score-kicker">Team card points</p>
+        <div className="score-teams">
+          <div>
+            <span>Team 1</span>
+            <strong>{teamPoints.team1}</strong>
+          </div>
+          <div>
+            <span>Team 2</span>
+            <strong>{teamPoints.team2}</strong>
+          </div>
+        </div>
+        {pointGap > 0 && (
+          <p className="hint" style={{ margin: "0.55rem 0 0" }}>
+            Teams differ by {pointGap} point{pointGap === 1 ? "" : "s"}.
+            Edit your cards to balance before starting.
+          </p>
+        )}
+      </div>
 
       <div className="slot-grid" style={{ "--slot-cols": slotCols } as CSSProperties}>
         {slots.map((card, i) =>
@@ -185,15 +210,28 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
                 .map((p) => (
                   <div key={p.id} className="player-chip compact">
                     <span>{p.name}</span>
-                    <button
-                      type="button"
-                      className="btn-secondary btn-small"
-                      onClick={() =>
-                        socket.emit("lobby:swapTeam", { playerId: p.id })
-                      }
-                    >
-                      Swap
-                    </button>
+                    <div className="player-actions">
+                      <button
+                        type="button"
+                        className="btn-secondary btn-small"
+                        onClick={() =>
+                          socket.emit("lobby:swapTeam", { playerId: p.id })
+                        }
+                      >
+                        Swap
+                      </button>
+                      {p.id !== meId && (
+                        <button
+                          type="button"
+                          className="btn-danger btn-small"
+                          onClick={() =>
+                            socket.emit("host:removePlayer", { playerId: p.id })
+                          }
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
             </div>
@@ -211,11 +249,11 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
         </button>
       )}
 
-      {isHost && allSubmitted && room.players.every((p) => p.ready) && (
+      {canStart && (
         <button
           type="button"
           className="btn-primary"
-          onClick={() => socket.emit("host:start")}
+          onClick={() => setConfirmStart(true)}
         >
           Start game
         </button>
@@ -344,6 +382,43 @@ export function CardSelectView({ room, meId, isHost, socket }: Props) {
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {confirmStart && (
+        <div
+          className="modal-backdrop centered"
+          onClick={() => setConfirmStart(false)}
+        >
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Start the game?</h3>
+            <p className="hint" style={{ margin: 0 }}>
+              Team 1&apos;s card points are <strong>{teamPoints.team1}</strong>.
+              Team 2&apos;s card points are <strong>{teamPoints.team2}</strong>.
+            </p>
+            {pointGap > 0 && (
+              <p className="hint" style={{ margin: "0.5rem 0 0" }}>
+                That&apos;s a {pointGap}-point difference. You can go back and
+                ask players to adjust their cards first.
+              </p>
+            )}
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                setConfirmStart(false);
+                socket.emit("host:start");
+              }}
+            >
+              Yes, start game
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setConfirmStart(false)}
+            >
+              Not yet
+            </button>
           </div>
         </div>
       )}

@@ -40,8 +40,18 @@ export function RoomPage() {
     const onEnded = () => {
       navigate("/", { replace: true });
     };
+    const onKicked = () => {
+      navigate("/", {
+        replace: true,
+        state: { message: "You were removed from the room by the host." },
+      });
+    };
     window.addEventListener("monikers:ended", onEnded);
-    return () => window.removeEventListener("monikers:ended", onEnded);
+    window.addEventListener("monikers:kicked", onKicked);
+    return () => {
+      window.removeEventListener("monikers:ended", onEnded);
+      window.removeEventListener("monikers:kicked", onKicked);
+    };
   }, [navigate]);
 
   useEffect(() => {
