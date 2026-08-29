@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import type { Card, RoomState } from "@monikers/shared";
+import type { Card, Player, RoomState, ScoredCard } from "@monikers/shared";
 import {
   formatMultiplier,
   formatScore,
@@ -482,6 +482,46 @@ export function PlayingView({ room, meId, socket }: Props) {
   );
 }
 
+function playerCardStats(players: Player[], scored: ScoredCard[]) {
+  return players
+    .map((p) => {
+      const got = scored.filter((s) => s.playerId === p.id);
+      return {
+        player: p,
+        cards: got.length,
+        points: got.reduce((sum, s) => sum + s.card.points, 0),
+      };
+    })
+    .sort((a, b) => b.cards - a.cards || a.player.team - b.player.team);
+}
+
+function StatLeaderboard({
+  title,
+  stats,
+}: {
+  title: string;
+  stats: ReturnType<typeof playerCardStats>;
+}) {
+  if (stats.every((s) => s.cards === 0)) return null;
+  return (
+    <div className="stat-block">
+      <p className="score-kicker">{title}</p>
+      {stats.map(({ player, cards, points }) => (
+        <div key={player.id} className="stat-row">
+          <span>
+            {player.name}
+            <em> · Team {player.team}</em>
+          </span>
+          <strong>
+            {cards} {cards === 1 ? "card" : "cards"}
+            <span className="stat-pts"> · {points} pts</span>
+          </strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function RoundEndView({
   room,
   isHost,
@@ -491,16 +531,7 @@ export function RoundEndView({
   isHost: boolean;
   socket: Socket;
 }) {
-  const stats = room.players
-    .map((p) => {
-      const got = room.scoredThisRound.filter((s) => s.playerId === p.id);
-      return {
-        player: p,
-        cards: got.length,
-        points: got.reduce((sum, s) => sum + s.card.points, 0),
-      };
-    })
-    .sort((a, b) => b.cards - a.cards || a.player.team - b.player.team);
+  const stats = playerCardStats(room.players, room.scoredThisRound);
   const mult = teamMultipliers(room.players, room.pointMultiplier);
 
   return (
@@ -541,21 +572,7 @@ export function RoundEndView({
         </div>
       </div>
 
-      <div className="stat-block">
-        <p className="score-kicker">Cards got this round</p>
-        {stats.map(({ player, cards, points }) => (
-          <div key={player.id} className="stat-row">
-            <span>
-              {player.name}
-              <em> · Team {player.team}</em>
-            </span>
-            <strong>
-              {cards} {cards === 1 ? "card" : "cards"}
-              <span className="stat-pts"> · {points} pts</span>
-            </strong>
-          </div>
-        ))}
-      </div>
+      <StatLeaderboard title="Cards got this round" stats={stats} />
 
       {isHost ? (
         <button
@@ -581,45 +598,64 @@ export function GameOverView({
   isHost: boolean;
   socket: Socket;
 }) {
+  const mult = teamMultipliers(room.players, room.pointMultiplier);
   const winner =
     room.scores.team1 === room.scores.team2
       ? "It's a tie!"
       : room.scores.team1 > room.scores.team2
         ? "Team 1 wins!"
         : "Team 2 wins!";
+  const allStats = playerCardStats(room.players, room.scoredAllGame ?? []);
 
   return (
-    <div className="tally stack">
+    <div className="tally stack game-over">
       <h2>Game over</h2>
-      <p className="big">{winner}</p>
-      <p className="hint">Final scores</p>
-      <p className="big">
-        Team 1: {formatScore(room.scores.team1)}
-        <br />
-        Team 2: {formatScore(room.scores.team2)}
-      </p>
+      <p className="game-over-winner">{winner}</p>
+
+      <div className="score-block earned">
+        <p className="score-kicker">Final scores</p>
+        <div className="score-teams">
+          <div>
+            <span>
+              Team 1
+              {mult.team1 !== 1 ? ` ${formatMultiplier(mult.team1)}` : ""}
+            </span>
+            <strong>{formatScore(room.scores.team1)}</strong>
+          </div>
+          <div>
+            <span>
+              Team 2
+              {mult.team2 !== 1 ? ` ${formatMultiplier(mult.team2)}` : ""}
+            </span>
+            <strong>{formatScore(room.scores.team2)}</strong>
+          </div>
+        </div>
+      </div>
+
+      <StatLeaderboard title="Score leaderboard" stats={allStats} />
+
       {isHost ? (
         <>
           <button
             type="button"
             className="btn-primary"
-            onClick={() => socket.emit("host:goHome")}
+            onClick={() => socket.emit("host:newGame")}
           >
-            Play again
+            Return to lobby
           </button>
           <button
             type="button"
             className="btn-secondary"
             onClick={() => socket.emit("host:replay")}
           >
-            Rematch (same cards)
+            Replay with same cards
           </button>
           <button
             type="button"
             className="btn-ghost"
-            onClick={() => socket.emit("host:newGame")}
+            onClick={() => socket.emit("host:goHome")}
           >
-            New cards
+            Return to home screen
           </button>
         </>
       ) : (

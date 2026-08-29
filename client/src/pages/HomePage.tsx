@@ -88,7 +88,7 @@ export function HomePage() {
       <div className="home-layout">
         <header className="brand-hero">
           <h1 className="brand-title">Monikers</h1>
-          <p className="brand-sub">Pass the phone. Make them guess.</p>
+          <p className="brand-sub">boutta be madness ting</p>
         </header>
         <section className="panel stack">
           <div className="row">

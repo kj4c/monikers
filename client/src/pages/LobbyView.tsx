@@ -20,6 +20,44 @@ type Props = {
   socket: Socket;
 };
 
+function Stepper({
+  value,
+  onDec,
+  onInc,
+  decDisabled,
+  incDisabled,
+}: {
+  value: string;
+  onDec: () => void;
+  onInc: () => void;
+  decDisabled?: boolean;
+  incDisabled?: boolean;
+}) {
+  return (
+    <div className="stepper">
+      <button
+        type="button"
+        className="stepper-btn"
+        disabled={decDisabled}
+        onClick={onDec}
+        aria-label="Decrease"
+      >
+        −
+      </button>
+      <span className="stepper-value">{value}</span>
+      <button
+        type="button"
+        className="stepper-btn"
+        onClick={onInc}
+        disabled={incDisabled}
+        aria-label="Increase"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 export function LobbyView({ room, meId, isHost, socket }: Props) {
   const t1 = room.players.filter((p) => p.team === 1);
   const t2 = room.players.filter((p) => p.team === 2);
@@ -49,44 +87,49 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
   };
 
   return (
-    <div className="stack">
-      <p className="hint">
-        Share code <strong>{room.code}</strong>.{" "}
-        {usingBank ? (
-          <>
-            We&apos;ll deal cards from the phrase bank ({PHRASE_BANK_SIZE}{" "}
-            phrases)
-            {uneven
-              ? ` — Team 1 adds ${t1Cards} each, Team 2 adds ${t2Cards} each.`
-              : `, ${n} each.`}
-          </>
-        ) : uneven ? (
-          <>
-            Team 1 adds <strong>{t1Cards}</strong> cards each, Team 2 adds{" "}
-            <strong>{t2Cards}</strong> each so both sides put in the same
-            total.
-          </>
-        ) : (
-          <>
-            Each player will add <strong>{n}</strong> custom cards.
-          </>
-        )}{" "}
-        Skips: <strong>{unlimited ? "unlimited" : skips}</strong>. Timer:{" "}
-        <strong>{room.turnSeconds}s</strong>.
-      </p>
+    <div className="lobby-view stack">
+      <section className="lobby-intro">
+        <p className="lobby-intro-label">Share this code</p>
+        <div className="lobby-code">{room.code}</div>
+        <p className="lobby-intro-summary">
+          {usingBank ? (
+            <>
+              Phrase bank deal · {bankNeed} cards
+              {uneven
+                ? ` · Team 1 ${t1Cards} each, Team 2 ${t2Cards} each`
+                : ` · ${n} each`}
+            </>
+          ) : uneven ? (
+            <>
+              Custom cards · Team 1 adds {t1Cards} each, Team 2 adds {t2Cards}{" "}
+              each
+            </>
+          ) : (
+            <>Custom cards · {n} per player</>
+          )}
+          {" · "}
+          {unlimited ? "Unlimited skips" : `${skips} skips`}
+          {" · "}
+          {room.turnSeconds}s turns
+        </p>
+      </section>
 
-      <div className="teams">
+      <div className="lobby-teams">
         {[1, 2].map((team) => (
-          <div className="team-col" key={team}>
+          <div className={`team-col team-${team}`} key={team}>
             <h3>Team {team}</h3>
             {(team === 1 ? t1 : t2).map((p) => (
               <div
                 key={p.id}
                 className={`player-chip ${p.id === meId ? "me" : ""} ${p.connected ? "" : "offline"}`}
               >
-                <span>
+                <span className="player-chip-name">
                   {p.name}
-                  {p.id === room.hostId ? " ★" : ""}
+                  {p.id === room.hostId && (
+                    <span className="host-badge" title="Host">
+                      ★
+                    </span>
+                  )}
                 </span>
                 {isHost && (
                   <div className="player-actions">
@@ -115,16 +158,16 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
               </div>
             ))}
             {(team === 1 ? t1 : t2).length === 0 && (
-              <p className="hint">Waiting…</p>
+              <p className="hint team-empty">Waiting for players…</p>
             )}
           </div>
         ))}
       </div>
 
       {uneven && (
-        <>
+        <div className="lobby-callout">
           <p className="hint">
-            Smaller team writes extra cards so both teams contribute{" "}
+            Smaller team writes extra cards so both sides contribute{" "}
             {Math.max(t1.length, t2.length) * n} total.
           </p>
           {isHost && (
@@ -157,170 +200,127 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
               .
             </p>
           )}
-        </>
+        </div>
       )}
 
       {isHost && (
-        <div className="stack">
-          <div
-            className="team-col"
-            style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
-          >
-            <h3>Cards</h3>
-            <div className="choice-row">
-              <button
-                type="button"
-                className={usingBank ? "btn-secondary" : "btn-secondary selected"}
-                onClick={() =>
-                  socket.emit("lobby:setCardSource", { source: "custom" })
-                }
-              >
-                Write your own
-              </button>
-              <button
-                type="button"
-                className={usingBank ? "btn-secondary selected" : "btn-secondary"}
-                onClick={() =>
-                  socket.emit("lobby:setCardSource", { source: "bank" })
-                }
-              >
-                Phrase bank
-              </button>
+        <>
+          <div className="lobby-settings">
+            <div className="setting-card setting-wide">
+              <h3>Cards</h3>
+              <div className="segmented">
+                <button
+                  type="button"
+                  className={usingBank ? "" : "selected"}
+                  onClick={() =>
+                    socket.emit("lobby:setCardSource", { source: "custom" })
+                  }
+                >
+                  Write your own
+                </button>
+                <button
+                  type="button"
+                  className={usingBank ? "selected" : ""}
+                  onClick={() =>
+                    socket.emit("lobby:setCardSource", { source: "bank" })
+                  }
+                >
+                  Phrase bank
+                </button>
+              </div>
+              {usingBank && (
+                <p className={`hint setting-note${bankTooSmall ? " error" : ""}`}>
+                  {bankTooSmall
+                    ? `Need ${bankNeed} cards, bank only has ${PHRASE_BANK_SIZE}. Lower cards per player.`
+                    : `Deals ${bankNeed} unique cards, then skips writing.`}
+                </p>
+              )}
             </div>
-            {usingBank && (
-              <p className="hint" style={{ margin: 0 }}>
-                {bankTooSmall
-                  ? `Need ${bankNeed} cards, bank only has ${PHRASE_BANK_SIZE}. Lower cards per player.`
-                  : `Deals ${bankNeed} unique cards, then skips writing.`}
-              </p>
-            )}
+
+            <div className="lobby-settings-row">
+              <div className="setting-card">
+                <h3>Cards per player</h3>
+                <Stepper
+                  value={String(n)}
+                  decDisabled={n <= MIN_CARDS_PER_PLAYER}
+                  incDisabled={n >= MAX_CARDS_PER_PLAYER}
+                  onDec={() => setCount(n - 1)}
+                  onInc={() => setCount(n + 1)}
+                />
+              </div>
+
+              <div className="setting-card">
+                <h3>Skips per turn</h3>
+                <Stepper
+                  value={unlimited ? "∞" : String(skips)}
+                  decDisabled={unlimited}
+                  incDisabled={!unlimited && skips >= MAX_MAX_SKIPS}
+                  onDec={() => setSkips(skips - 1)}
+                  onInc={() => setSkips(unlimited ? 1 : skips + 1)}
+                />
+                <button
+                  type="button"
+                  className={`setting-toggle${unlimited ? " active" : ""}`}
+                  onClick={() => setSkips(unlimited ? 3 : 0)}
+                >
+                  {unlimited ? "Use a skip limit" : "Unlimited skips"}
+                </button>
+              </div>
+
+              <div className="setting-card setting-full">
+                <h3>Turn timer</h3>
+                <Stepper
+                  value={`${room.turnSeconds}s`}
+                  decDisabled={room.turnSeconds <= MIN_TURN_SECONDS}
+                  incDisabled={room.turnSeconds >= MAX_TURN_SECONDS}
+                  onDec={() =>
+                    socket.emit("lobby:setTurnSeconds", {
+                      seconds: room.turnSeconds - 5,
+                    })
+                  }
+                  onInc={() =>
+                    socket.emit("lobby:setTurnSeconds", {
+                      seconds: room.turnSeconds + 5,
+                    })
+                  }
+                />
+              </div>
+            </div>
           </div>
-          <div
-            className="team-col"
-            style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
-          >
-            <h3>Cards per player</h3>
-            <div className="row" style={{ justifyContent: "center" }}>
-              <button
-                type="button"
-                className="btn-secondary btn-small"
-                disabled={n <= MIN_CARDS_PER_PLAYER}
-                onClick={() => setCount(n - 1)}
-              >
-                −
-              </button>
-              <strong style={{ minWidth: "2rem", textAlign: "center" }}>
-                {n}
-              </strong>
-              <button
-                type="button"
-                className="btn-secondary btn-small"
-                disabled={n >= MAX_CARDS_PER_PLAYER}
-                onClick={() => setCount(n + 1)}
-              >
-                +
-              </button>
-            </div>
-          </div>
-          <div
-            className="team-col"
-            style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
-          >
-            <h3>Skips per turn</h3>
-            <div className="row" style={{ justifyContent: "center" }}>
-              <button
-                type="button"
-                className="btn-secondary btn-small"
-                disabled={unlimited}
-                onClick={() => setSkips(skips - 1)}
-              >
-                −
-              </button>
-              <strong style={{ minWidth: "4.5rem", textAlign: "center" }}>
-                {unlimited ? "∞" : skips}
-              </strong>
-              <button
-                type="button"
-                className="btn-secondary btn-small"
-                disabled={!unlimited && skips >= MAX_MAX_SKIPS}
-                onClick={() => setSkips(unlimited ? 1 : skips + 1)}
-              >
-                +
-              </button>
-            </div>
+
+          <div className="lobby-actions">
             <button
               type="button"
-              className={
-                unlimited ? "btn-primary btn-small" : "btn-secondary btn-small"
-              }
-              style={{ width: "100%" }}
-              onClick={() => setSkips(unlimited ? 3 : 0)}
+              className="btn-secondary"
+              onClick={() => socket.emit("lobby:shuffleTeams")}
             >
-              {unlimited ? "Use a skip limit" : "Unlimited skips"}
+              Shuffle teams
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={bankTooSmall}
+              onClick={() =>
+                socket.emit(
+                  usingBank ? "lobby:startFromBank" : "lobby:startCardSelect"
+                )
+              }
+            >
+              {usingBank ? "Start game" : "Start card select"}
             </button>
           </div>
-          <div
-            className="team-col"
-            style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
-          >
-            <h3>Turn timer</h3>
-            <div className="row" style={{ justifyContent: "center" }}>
-              <button
-                type="button"
-                className="btn-secondary btn-small"
-                disabled={room.turnSeconds <= MIN_TURN_SECONDS}
-                onClick={() =>
-                  socket.emit("lobby:setTurnSeconds", {
-                    seconds: room.turnSeconds - 5,
-                  })
-                }
-              >
-                −
-              </button>
-              <strong style={{ minWidth: "4.5rem", textAlign: "center" }}>
-                {room.turnSeconds}s
-              </strong>
-              <button
-                type="button"
-                className="btn-secondary btn-small"
-                disabled={room.turnSeconds >= MAX_TURN_SECONDS}
-                onClick={() =>
-                  socket.emit("lobby:setTurnSeconds", {
-                    seconds: room.turnSeconds + 5,
-                  })
-                }
-              >
-                +
-              </button>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => socket.emit("lobby:shuffleTeams")}
-          >
-            Shuffle teams
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={bankTooSmall}
-            onClick={() =>
-              socket.emit(
-                usingBank ? "lobby:startFromBank" : "lobby:startCardSelect"
-              )
-            }
-          >
-            {usingBank ? "Start game" : "Start card select"}
-          </button>
-        </div>
+        </>
       )}
+
       {!isHost && (
-        <p className="hint">
-          {usingBank
-            ? "Waiting for host to start the game…"
-            : "Waiting for host to start card select…"}
-        </p>
+        <div className="lobby-waiting">
+          <p className="lobby-waiting-title">Waiting for host</p>
+          <p className="hint">
+            {usingBank
+              ? "The host will start the game when everyone is ready."
+              : "The host will start card select when everyone is ready."}
+          </p>
+        </div>
       )}
     </div>
   );

@@ -53,6 +53,7 @@ export interface ScoredCard {
   card: Card;
   team: Team;
   playerId: string;
+  round: 1 | 2 | 3;
 }
 
 export interface Scores {
@@ -79,6 +80,8 @@ export interface RoomState {
   deck: Card[];
   skipPile: Card[];
   scoredThisRound: ScoredCard[];
+  /** Every card scored this game, kept through round end and game over */
+  scoredAllGame: ScoredCard[];
   /** All cards in play for reshuffling between rounds */
   roundCards: Card[];
   round: 1 | 2 | 3;

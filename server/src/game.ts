@@ -1,4 +1,4 @@
-import type { Card, RoomState, Team } from "@monikers/shared";
+import type { Card, RoomState, ScoredCard, Team } from "@monikers/shared";
 import {
   DEFAULT_CARDS_PER_PLAYER,
   DEFAULT_MAX_SKIPS,
@@ -36,6 +36,7 @@ export function createEmptyRoom(code: string, hostId: string): RoomState {
     deck: [],
     skipPile: [],
     scoredThisRound: [],
+    scoredAllGame: [],
     roundCards: [],
     round: 1,
     turn: null,
@@ -164,6 +165,7 @@ export function startGame(room: RoomState) {
   room.deck = [...room.roundCards];
   room.skipPile = [];
   room.scoredThisRound = [];
+  room.scoredAllGame = [];
   room.round = 1;
   room.scores = emptyScores();
   room.roundScores = emptyScores();
@@ -193,6 +195,7 @@ export function replayGame(room: RoomState): { ok: boolean; error?: string } {
   room.deck = shuffle([...room.roundCards]);
   room.skipPile = [];
   room.scoredThisRound = [];
+  room.scoredAllGame = [];
   room.round = 1;
   room.scores = emptyScores();
   room.roundScores = emptyScores();
@@ -221,6 +224,7 @@ export function resetToLobby(room: RoomState): { ok: boolean; error?: string } {
   room.deck = [];
   room.skipPile = [];
   room.scoredThisRound = [];
+  room.scoredAllGame = [];
   room.roundCards = [];
   room.round = 1;
   room.scores = emptyScores();
@@ -252,11 +256,14 @@ export function gotIt(room: RoomState): { ok: boolean; error?: string } {
   }
 
   const card = room.deck.shift()!;
-  room.scoredThisRound.push({
+  const scored: ScoredCard = {
     card,
     team: room.turn.team,
     playerId: room.turn.playerId,
-  });
+    round: room.round,
+  };
+  room.scoredThisRound.push(scored);
+  room.scoredAllGame.push(scored);
   const mult = teamMultipliers(room.players, room.pointMultiplier);
   const awarded =
     card.points * (room.turn.team === 1 ? mult.team1 : mult.team2);
@@ -295,6 +302,10 @@ export function undoGotIt(room: RoomState): { ok: boolean; error?: string } {
 
   room.scoredThisRound.pop();
   const { card, team } = last;
+  const lastAll = room.scoredAllGame.at(-1);
+  if (lastAll?.card.id === card.id) {
+    room.scoredAllGame.pop();
+  }
   room.deck.unshift(card);
 
   const mult = teamMultipliers(room.players, room.pointMultiplier);
