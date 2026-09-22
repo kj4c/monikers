@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { AdBanner } from "../components/AdBanner";
 import { useSocket } from "../socket";
 import { getStoredName } from "../session";
 
@@ -135,6 +136,7 @@ export function HomePage() {
           </button>
         </section>
       </div>
+      <AdBanner />
 
       {dialog.open && (
         <div

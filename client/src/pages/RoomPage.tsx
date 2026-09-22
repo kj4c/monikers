@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { getStoredName, useSocket } from "../socket";
 import { getSession } from "../session";
+import { AdBanner } from "../components/AdBanner";
 import { LobbyView } from "./LobbyView";
 import { CardSelectView } from "./CardSelectView";
 import {
@@ -121,6 +122,7 @@ export function RoomPage() {
         <div className="room-body stack">
           <p className="hint">Connecting to room {roomCode}…</p>
         </div>
+        <AdBanner />
       </div>
     );
   }
@@ -130,6 +132,7 @@ export function RoomPage() {
     room.phase === "playing" ||
     room.phase === "roundEnd" ||
     room.phase === "gameOver";
+  const showAds = room.phase !== "playing";
   const phaseLabel =
     room.phase === "lobby"
       ? "Lobby"
@@ -191,6 +194,7 @@ export function RoomPage() {
           <GameOverView room={room} isHost={isHost} socket={socket} />
         )}
       </main>
+      {showAds && <AdBanner />}
     </div>
   );
 }
