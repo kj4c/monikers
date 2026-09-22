@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AdBanner } from "../components/AdBanner";
+import { Spinner } from "../components/Spinner";
+import { isAdminUnlocked, setAdminSecret } from "../admin";
 import { useSocket } from "../socket";
 import { getStoredName } from "../session";
 
@@ -14,6 +16,7 @@ export function HomePage() {
   const { createRoom, joinRoom } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navState = (location.state as NavState | null) ?? null;
 
   const [name, setName] = useState(() => getStoredName());
@@ -22,6 +25,8 @@ export function HomePage() {
     navState?.joinCode ? "join" : "create"
   );
   const [busy, setBusy] = useState(false);
+  const [admin, setAdmin] = useState(() => isAdminUnlocked());
+  const [noAds, setNoAds] = useState(() => isAdminUnlocked());
   const [err, setErr] = useState<string | null>(
     () => navState?.message ?? null
   );
@@ -39,6 +44,23 @@ export function HomePage() {
       : { open: false, message: "" }
   );
   const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const secret = searchParams.get("admin");
+    if (secret == null) return;
+    if (secret) {
+      setAdminSecret(secret);
+      setAdmin(true);
+      setNoAds(true);
+    } else {
+      setAdminSecret(null);
+      setAdmin(false);
+      setNoAds(false);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("admin");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (navState?.needName || navState?.joinCode || navState?.message) {
@@ -66,7 +88,9 @@ export function HomePage() {
     setBusy(true);
     try {
       if (mode === "create") {
-        const roomCode = await createRoom(n);
+        const roomCode = await createRoom(n, {
+          noAds: admin && noAds,
+        });
         navigate(`/room/${roomCode}`);
       } else {
         if (!code.trim()) {
@@ -125,18 +149,39 @@ export function HomePage() {
               autoCapitalize="characters"
             />
           )}
+          {admin && mode === "create" && (
+            <label className="admin-toggle">
+              <input
+                type="checkbox"
+                checked={noAds}
+                onChange={(e) => setNoAds(e.target.checked)}
+              />
+              <span>Create without ads</span>
+            </label>
+          )}
           {err && <div className="error-banner">{err}</div>}
           <button
             type="button"
-            className="btn-primary"
+            className={`btn-primary${busy ? " is-loading" : ""}`}
             disabled={busy}
             onClick={() => void submit()}
+            aria-busy={busy}
           >
-            {busy ? "…" : mode === "create" ? "Create room" : "Join room"}
+            {busy ? (
+              <>
+                <Spinner size="sm" tone="light" />
+                {mode === "create" ? "Creating room…" : "Joining room…"}
+              </>
+            ) : mode === "create" ? (
+              admin && noAds ? "Create ad-free room" : "Create room"
+            ) : (
+              "Join room"
+            )}
           </button>
+          {admin && <p className="hint admin-hint">Admin mode on</p>}
         </section>
       </div>
-      <AdBanner />
+      {!(admin && noAds && mode === "create") && <AdBanner />}
 
       {dialog.open && (
         <div

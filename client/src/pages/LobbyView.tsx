@@ -12,6 +12,7 @@ import {
   totalCardsNeeded,
 } from "@monikers/shared";
 import type { Socket } from "socket.io-client";
+import { RoomCodeCopy } from "../components/RoomCodeCopy";
 
 type Props = {
   room: RoomState;
@@ -87,10 +88,13 @@ export function LobbyView({ room, meId, isHost, socket }: Props) {
   };
 
   return (
-    <div className="lobby-view stack">
+    <div className="lobby-view stack stagger-children">
       <section className="lobby-intro">
         <p className="lobby-intro-label">Share this code</p>
-        <div className="lobby-code">{room.code}</div>
+        <RoomCodeCopy code={room.code} variant="lobby" />
+        {room.noAds && (
+          <p className="lobby-adfree">Ad-free room</p>
+        )}
         <p className="lobby-intro-summary">
           {usingBank ? (
             <>

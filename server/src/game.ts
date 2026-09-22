@@ -32,6 +32,7 @@ export function createEmptyRoom(code: string, hostId: string): RoomState {
     turnSeconds: DEFAULT_TURN_SECONDS,
     cardSource: "custom",
     pointMultiplier: false,
+    noAds: false,
     submissions: {},
     deck: [],
     skipPile: [],

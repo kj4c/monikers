@@ -3,6 +3,8 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { getStoredName, useSocket } from "../socket";
 import { getSession } from "../session";
 import { AdBanner } from "../components/AdBanner";
+import { LoadingPanel } from "../components/LoadingPanel";
+import { RoomCodeCopy } from "../components/RoomCodeCopy";
 import { LobbyView } from "./LobbyView";
 import { CardSelectView } from "./CardSelectView";
 import {
@@ -110,19 +112,18 @@ export function RoomPage() {
 
   if (!inRoom) {
     return (
-      <div className="app-shell">
+      <div className="app-shell view-enter">
         <header className="room-header">
           <div className="room-header-left">
             <button type="button" className="btn-back" onClick={goHome}>
               ← Back
             </button>
-            <div className="room-code">{roomCode}</div>
+            <RoomCodeCopy code={roomCode} variant="header" />
           </div>
         </header>
-        <div className="room-body stack">
-          <p className="hint">Connecting to room {roomCode}…</p>
+        <div className="room-body">
+          <LoadingPanel label={`Connecting to room ${roomCode}…`} />
         </div>
-        <AdBanner />
       </div>
     );
   }
@@ -132,7 +133,7 @@ export function RoomPage() {
     room.phase === "playing" ||
     room.phase === "roundEnd" ||
     room.phase === "gameOver";
-  const showAds = room.phase !== "playing";
+  const showAds = room.phase !== "playing" && !room.noAds;
   const phaseLabel =
     room.phase === "lobby"
       ? "Lobby"
@@ -145,7 +146,7 @@ export function RoomPage() {
             : "Finished";
 
   return (
-    <div className="app-shell">
+    <div className="app-shell view-enter">
       <header className="room-header">
         <div className="room-header-left">
           {!inGame && (
@@ -153,7 +154,7 @@ export function RoomPage() {
               ← Back
             </button>
           )}
-          <div className="room-code">{room.code}</div>
+          <RoomCodeCopy code={room.code} variant="header" />
         </div>
         <div className="room-meta">
           {phaseLabel}
@@ -162,37 +163,43 @@ export function RoomPage() {
         </div>
       </header>
       <main className="room-body">
-        {error && <div className="error-banner">{error}</div>}
-        {room.phase === "lobby" && (
-          <LobbyView
-            room={room}
-            meId={playerId}
-            isHost={isHost}
-            socket={socket}
-          />
+        {error && (
+          <div className="error-banner" key={error}>
+            {error}
+          </div>
         )}
-        {room.phase === "cardSelect" && (
-          <CardSelectView
-            room={room}
-            meId={playerId}
-            isHost={isHost}
-            socket={socket}
-          />
-        )}
-        {room.phase === "playing" && (
-          <PlayingView
-            room={room}
-            meId={playerId}
-            isHost={isHost}
-            socket={socket}
-          />
-        )}
-        {room.phase === "roundEnd" && (
-          <RoundEndView room={room} isHost={isHost} socket={socket} />
-        )}
-        {room.phase === "gameOver" && (
-          <GameOverView room={room} isHost={isHost} socket={socket} />
-        )}
+        <div key={room.phase} className="phase-view">
+          {room.phase === "lobby" && (
+            <LobbyView
+              room={room}
+              meId={playerId}
+              isHost={isHost}
+              socket={socket}
+            />
+          )}
+          {room.phase === "cardSelect" && (
+            <CardSelectView
+              room={room}
+              meId={playerId}
+              isHost={isHost}
+              socket={socket}
+            />
+          )}
+          {room.phase === "playing" && (
+            <PlayingView
+              room={room}
+              meId={playerId}
+              isHost={isHost}
+              socket={socket}
+            />
+          )}
+          {room.phase === "roundEnd" && (
+            <RoundEndView room={room} isHost={isHost} socket={socket} />
+          )}
+          {room.phase === "gameOver" && (
+            <GameOverView room={room} isHost={isHost} socket={socket} />
+          )}
+        </div>
       </main>
       {showAds && <AdBanner />}
     </div>

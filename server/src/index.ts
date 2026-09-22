@@ -95,9 +95,24 @@ async function attachToRoom(
 io.on("connection", (socket) => {
   socket.on(
     "room:create",
-    ({ name }: { name: string }, ack?: (r: unknown) => void) => {
+    (
+      {
+        name,
+        noAds,
+        adminSecret,
+      }: { name: string; noAds?: boolean; adminSecret?: string },
+      ack?: (r: unknown) => void
+    ) => {
       try {
-        const { room, playerId } = createRoom(socket.id, name ?? "");
+        const result = createRoom(socket.id, name ?? "", {
+          noAds,
+          adminSecret,
+        });
+        if (result.error || !result.room || !result.playerId) {
+          ack?.({ ok: false, error: result.error ?? "Failed to create room" });
+          return;
+        }
+        const { room, playerId } = result;
         void attachToRoom(socket, room.code, playerId).then(() => {
           emitToSocket(socket, room, playerId);
           ack?.({ ok: true, code: room.code, playerId });

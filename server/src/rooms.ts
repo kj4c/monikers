@@ -131,13 +131,22 @@ function findPlayerByName(room: RoomState, name: string) {
   return matches.find((p) => !p.connected) ?? matches[0];
 }
 
+const ADMIN_SECRET = process.env.ADMIN_SECRET ?? "monikers";
+
 export function createRoom(
   socketId: string,
-  name: string
-): { room: RoomState; playerId: string } {
+  name: string,
+  options?: { noAds?: boolean; adminSecret?: string }
+): { room?: RoomState; playerId?: string; error?: string } {
+  const wantNoAds = !!options?.noAds;
+  if (wantNoAds && options?.adminSecret !== ADMIN_SECRET) {
+    return { error: "Invalid admin secret" };
+  }
+
   const code = generateCode();
   const playerId = uuid();
   const room = createEmptyRoom(code, playerId);
+  room.noAds = wantNoAds;
   const player = {
     id: playerId,
     name: normalizeName(name),

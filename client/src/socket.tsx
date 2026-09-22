@@ -17,6 +17,7 @@ import {
   saveSession,
   setStoredName,
 } from "./session";
+import { getAdminSecret } from "./admin";
 
 type Ack = {
   ok?: boolean;
@@ -33,7 +34,7 @@ type SocketContextValue = {
   error: string | null;
   clearError: () => void;
   clearRoom: () => void;
-  createRoom: (name: string) => Promise<string>;
+  createRoom: (name: string, options?: { noAds?: boolean }) => Promise<string>;
   joinRoom: (code: string, name: string) => Promise<string>;
   rejoinSession: () => Promise<boolean>;
 };
@@ -174,22 +175,31 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   );
 
   const createRoom = useCallback(
-    (name: string) =>
+    (name: string, options?: { noAds?: boolean }) =>
       new Promise<string>((resolve, reject) => {
         setStoredName(name);
-        socket.emit("room:create", { name }, (res: Ack) => {
-          if (res?.ok && res.code && res.playerId) {
-            saveSession({
-              playerId: res.playerId,
-              roomCode: res.code,
-              name: name.trim(),
-            });
-            setPlayerId(res.playerId);
-            void waitForRoom(res.code)
-              .catch(() => {})
-              .finally(() => resolve(res.code!));
-          } else reject(new Error(res?.error ?? "Failed to create room"));
-        });
+        const adminSecret = options?.noAds ? getAdminSecret() : null;
+        socket.emit(
+          "room:create",
+          {
+            name,
+            noAds: !!options?.noAds,
+            adminSecret: adminSecret ?? undefined,
+          },
+          (res: Ack) => {
+            if (res?.ok && res.code && res.playerId) {
+              saveSession({
+                playerId: res.playerId,
+                roomCode: res.code,
+                name: name.trim(),
+              });
+              setPlayerId(res.playerId);
+              void waitForRoom(res.code)
+                .catch(() => {})
+                .finally(() => resolve(res.code!));
+            } else reject(new Error(res?.error ?? "Failed to create room"));
+          }
+        );
       }),
     [socket, waitForRoom]
   );

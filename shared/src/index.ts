@@ -75,6 +75,8 @@ export interface RoomState {
   cardSource: "custom" | "bank";
   /** Host can boost the smaller team's points when sides are uneven */
   pointMultiplier: boolean;
+  /** Admin-created rooms hide ads for everyone in the room */
+  noAds: boolean;
   /** playerId -> cards being built during cardSelect */
   submissions: Record<string, Card[]>;
   deck: Card[];
